@@ -60,6 +60,15 @@ The app submits one confirmed nameplate crop per inspection. Google Vision retur
 4. Adjust the red crop rectangle if needed and click **Use this crop**.
 5. Click **Run OCR and compare**.
 
+## Full-photo Google Vision trial
+
+Open `trial.html` to test Google Vision without manual or automatic cropping. The trial sends the complete uploaded or camera photo to the existing Cloud Run endpoint, then compares the full OCR text against every configured product type and both origin lines.
+
+- The crop-first `index.html` workflow remains unchanged.
+- Large phone photos are resized only when needed, preserving the full image and aspect ratio.
+- The trial uses Google Vision only and does not silently fall back to Tesseract.
+- Trial history is stored separately under `nameplate-trial-history`.
+
 The result table reports each attribute independently with expected value, pass/fail result, score, and the closest OCR text. The **Best OCR match** column always shows OCR text rather than placeholder wording.
 
 Because the app now runs multiple OCR passes for better accuracy, each image may take longer than the first simple prototype.

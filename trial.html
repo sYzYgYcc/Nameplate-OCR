@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#002060">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Nameplate OCR Trial">
+  <title>Nameplate OCR Full-Photo Trial</title>
+  <style>
+    :root {
+      --ink:#17212b; --muted:#64748b; --line:#dce3ea; --paper:#fff; --bg:#f4f7f9;
+      --brand:#135d66; --brand2:#0d474e; --ok:#137333; --bad:#b42318; --warn:#a15c00;
+      --navy:#002060;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Arial,Helvetica,sans-serif; color:var(--ink); background:var(--bg); }
+    header { padding:30px max(24px,calc((100% - 1180px)/2)); color:#fff; background:var(--navy); }
+    header h1 { margin:0 0 8px; font-size:clamp(26px,4vw,40px); }
+    header p { margin:0; max-width:820px; color:#dce8ff; }
+    .nav { display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+    .nav a { padding:9px 14px; border:1px solid #9bb6e5; border-radius:6px; color:#fff; text-decoration:none; font-weight:700; }
+    .nav a.active { color:var(--navy); background:#fff; }
+    main { max-width:1180px; margin:24px auto; padding:0 20px 40px; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .card { padding:22px; border:1px solid var(--line); border-radius:10px; background:var(--paper); box-shadow:0 4px 16px #001b4410; }
+    .wide { grid-column:1/-1; }
+    h2 { margin:0 0 16px; font-size:20px; color:var(--navy); }
+    h3 { margin:18px 0 8px; }
+    .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    select,input,textarea,button { font:inherit; }
+    select,input,textarea { padding:10px; border:1px solid #bdc9d6; border-radius:6px; background:#fff; }
+    select { min-width:240px; }
+    textarea { min-height:105px; resize:vertical; }
+    button { padding:10px 15px; border:0; border-radius:6px; cursor:pointer; font-weight:700; }
+    button:disabled { cursor:not-allowed; opacity:.45; }
+    .primary { color:#fff; background:var(--navy); }
+    .secondary { color:var(--navy); border:1px solid #9fb0c2; background:#fff; }
+    .danger { color:#fff; background:var(--bad); }
+    .help,.muted { color:var(--muted); font-size:14px; }
+    .notice { padding:12px 14px; border-left:4px solid var(--warn); background:#fff7e8; color:#674000; }
+    .drop { min-height:240px; display:flex; align-items:center; justify-content:center; text-align:center; border:2px dashed #9fb0c2; border-radius:10px; background:#f8fafc; overflow:hidden; cursor:pointer; }
+    .drop.drag { border-color:var(--brand); background:#edf8f8; }
+    .drop img { display:block; max-width:100%; max-height:420px; object-fit:contain; }
+    .progress { display:none; height:8px; margin-top:14px; border-radius:99px; overflow:hidden; background:#e4eaf0; }
+    .progress span { display:block; width:0; height:100%; background:var(--brand); transition:width .2s; }
+    .status { min-height:22px; margin-top:10px; color:var(--muted); }
+    .summary { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+    .metric { min-width:150px; padding:13px; border:1px solid var(--line); border-radius:8px; background:#f8fafc; }
+    .metric strong { display:block; margin-top:5px; font-size:24px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { padding:10px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:#f3f6f9; color:#435168; }
+    .badge { display:inline-block; padding:4px 8px; border-radius:99px; color:#fff; font-weight:700; font-size:12px; }
+    .pass { background:var(--ok); } .fail { background:var(--bad); }
+    details { margin-top:15px; }
+    pre { max-height:320px; overflow:auto; white-space:pre-wrap; padding:12px; background:#111827; color:#e5eefb; }
+    dialog { width:min(570px,calc(100% - 28px)); border:0; border-radius:10px; padding:24px; }
+    dialog::backdrop { background:#00152f80; }
+    dialog label { display:block; margin:13px 0 6px; font-weight:700; }
+    dialog input,dialog textarea { width:100%; }
+    .empty { padding:20px; text-align:center; color:var(--muted); border:1px dashed var(--line); }
+    @media(max-width:800px) {
+      .grid { grid-template-columns:1fr; }
+      .wide { grid-column:auto; }
+      .result-table { display:block; overflow-x:auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Nameplate OCR Full-Photo Trial</h1>
+    <p>Experimental Google Vision workflow: send the complete photo without manual or automatic cropping, then compare all extracted text against the selected standard.</p>
+    <nav class="nav">
+      <a href="index.html">Crop-first app</a>
+      <a href="trial.html" class="active">Full-photo trial</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="grid">
+      <section class="card">
+        <h2>1. Nameplate standard</h2>
+        <div class="row">
+          <select id="standardSelect" aria-label="Nameplate standard"></select>
+          <button class="secondary" id="editStandard">Edit</button>
+          <button class="secondary" id="newStandard">New</button>
+        </div>
+        <p class="help">Product type passes if Google Vision matches any allowed model. Origin lines are checked separately.</p>
+        <label for="threshold"><strong>Pass threshold: <span id="thresholdValue">85%</span></strong></label>
+        <input id="threshold" type="range" min="50" max="100" value="85" style="width:100%">
+      </section>
+
+      <section class="card">
+        <h2>2. Upload full photo</h2>
+        <div class="notice">Trial behavior: the complete photo is sent to Google Cloud Vision. No crop is applied. Large photos may be resized or compressed while preserving the full image.</div>
+        <label class="drop" id="dropZone" style="margin-top:14px">
+          <input id="fileInput" type="file" accept="image/*" hidden>
+          <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
+          <span id="dropText"><strong>Choose or drop a full nameplate photo</strong><br><span class="muted">PNG, JPG, WEBP, or a phone photo</span></span>
+          <img id="preview" alt="Full uploaded photo" hidden>
+        </label>
+        <div class="row" style="margin-top:14px">
+          <button class="secondary" id="chooseImage" type="button">Choose Image</button>
+          <button class="secondary" id="takePhoto" type="button">Take Photo</button>
+          <button class="primary" id="runButton" disabled>Run full-photo OCR</button>
+          <button class="secondary" id="clearImage" disabled>Clear</button>
+        </div>
+        <div class="progress" id="progress"><span></span></div>
+        <div class="status" id="status"></div>
+      </section>
+
+      <section class="card wide">
+        <h2>Current standard preview</h2>
+        <div id="standardPreview"></div>
+      </section>
+
+      <section class="card wide">
+        <h2>Comparison result</h2>
+        <div id="results"><div class="empty">Upload a full photo and run Google Vision to see the comparison.</div></div>
+      </section>
+
+      <section class="card wide">
+        <div class="row" style="justify-content:space-between">
+          <h2 style="margin:0">Saved trial runs</h2>
+          <div class="row">
+            <button class="secondary" id="exportCsv">Export CSV</button>
+            <button class="danger" id="clearHistory">Clear history</button>
+          </div>
+        </div>
+        <div id="history"></div>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="standardDialog">
+    <form method="dialog" id="standardForm">
+      <h2 id="dialogTitle">Edit nameplate standard</h2>
+      <label for="standardName">Standard name</label>
+      <input id="standardName" required maxlength="80">
+      <label for="productTypes">Allowed product types, one per line</label>
+      <textarea id="productTypes" required></textarea>
+      <label for="originLine1">Product origin line 1</label>
+      <input id="originLine1" required>
+      <label for="originLine2">Product origin line 2</label>
+      <input id="originLine2" required>
+      <div class="row" style="justify-content:flex-end;margin-top:16px">
+        <button class="secondary" value="cancel">Cancel</button>
+        <button class="primary" value="default">Save standard</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const VISION_API_URL = "https://nameplate-ocr-api-906417989527.us-east1.run.app";
+    const MAX_LONG_EDGE = 4096;
+    const TARGET_BYTES = 8 * 1024 * 1024 - 64 * 1024;
+    const DEFAULT_STANDARD = {
+      id: "nameplate-default",
+      name: "Illuminate Nameplate 540-560",
+      productTypes: ["IL5-72HBD-545M", "IL5-72HBD-550M", "IL5-72HBD-555M"],
+      originLine1: "Product of Turkey",
+      originLine2: "Assembled by Illuminate USA LLC"
+    };
+    const $ = id => document.getElementById(id);
+    let standards = (JSON.parse(localStorage.getItem("nameplate-standards") || "null") || [DEFAULT_STANDARD]).map(normalizeStandard);
+    let history = JSON.parse(localStorage.getItem("nameplate-trial-history") || "[]");
+    let selectedOriginalFile = null;
+    let preparedVisionBlob = null;
+    let previewUrl = null;
+    let editingId = null;
+
+    function productTypesFrom(value) {
+      const raw = Array.isArray(value) ? value : String(value || "").split(/\r?\n|,/);
+      return [...new Set(raw.map(value => String(value).trim()).filter(Boolean))];
+    }
+    function normalizeStandard(value) {
+      const origin = value?.origin || "";
+      const productTypes = productTypesFrom(value?.productTypes?.length ? value.productTypes : value?.productType);
+      return {
+        ...DEFAULT_STANDARD,
+        ...value,
+        productTypes: productTypes.length ? productTypes : DEFAULT_STANDARD.productTypes,
+        originLine1: value?.originLine1 || origin.match(/^(.+?)(?=\s+Assembled\s+by\s+)/i)?.[1] || DEFAULT_STANDARD.originLine1,
+        originLine2: value?.originLine2 || origin.match(/(Assembled\s+by\s+.+)$/i)?.[1] || DEFAULT_STANDARD.originLine2
+      };
+    }
+    function saveStandards() { localStorage.setItem("nameplate-standards", JSON.stringify(standards)); }
+    function saveHistory() { localStorage.setItem("nameplate-trial-history", JSON.stringify(history.slice(0, 100))); }
+    function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])); }
+    function normalize(value) { return String(value ?? "").toLowerCase().replace(/[^\p{L}\p{N}.\/-]+/gu, " ").replace(/\s+/g, " ").trim(); }
+    function distance(a, b) {
+      const row = Array.from({length:b.length + 1}, (_, index) => index);
+      for (let i = 1; i <= a.length; i++) {
+        let previous = row[0]; row[0] = i;
+        for (let j = 1; j <= b.length; j++) {
+          const old = row[j];
+          row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+          previous = old;
+        }
+      }
+      return row[b.length];
+    }
+    function similarity(a, b) {
+      a = normalize(a); b = normalize(b);
+      return !a || !b ? 0 : 1 - distance(a, b) / Math.max(a.length, b.length);
+    }
+    function ocrCandidates(sourceText) {
+      const lines = sourceText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      const candidates = [...lines];
+      for (let size = 2; size <= 3; size++) {
+        for (let index = 0; index <= lines.length - size; index++) {
+          candidates.push(lines.slice(index, index + size).join(" "));
+        }
+      }
+      return [...new Set(candidates)];
+    }
+    function matchExpectedText(expected, sourceText) {
+      const candidates = ocrCandidates(sourceText);
+      const expectedNormalized = normalize(expected);
+      const contained = candidates.find(candidate => normalize(candidate).includes(expectedNormalized));
+      if (expectedNormalized && contained) return { actual: contained, score:1 };
+      let best = { actual:"", score:0 };
+      for (const candidate of candidates) {
+        const score = similarity(expected, candidate);
+        if (score > best.score) best = { actual:candidate, score };
+      }
+      return best;
+    }
+    function matchAnyExpectedText(expectedList, sourceText) {
+      const values = productTypesFrom(expectedList);
+      let best = { actual:"", score:0, matchedExpected:values[0] || "" };
+      for (const expected of values) {
+        const candidate = matchExpectedText(expected, sourceText);
+        if (candidate.score > best.score) best = { ...candidate, matchedExpected:expected };
+      }
+      return best;
+    }
+    function compareStandard(standard, sourceText, threshold) {
+      const checks = [
+        { group:"Product", attribute:"Product type", expected:standard.productTypes, mode:"productTypes" },
+        { group:"Origin", attribute:"Product origin line 1", expected:standard.originLine1, mode:"text" },
+        { group:"Origin", attribute:"Product origin line 2", expected:standard.originLine2, mode:"text" }
+      ];
+      return checks.map(check => {
+        const expected = Array.isArray(check.expected) ? check.expected.join(" | ") : String(check.expected || "");
+        const best = check.mode === "productTypes"
+          ? matchAnyExpectedText(check.expected, sourceText)
+          : matchExpectedText(check.expected, sourceText);
+        return {
+          ...check,
+          expected:best.matchedExpected || expected,
+          actual:best.actual || "No similar OCR text found",
+          score:best.score,
+          pass:best.score >= threshold
+        };
+      });
+    }
+    function currentStandard() { return standards.find(item => item.id === $("standardSelect").value) || standards[0]; }
+    function renderStandards(selectedId) {
+      $("standardSelect").innerHTML = standards.map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
+      if (selectedId) $("standardSelect").value = selectedId;
+      renderStandardPreview();
+    }
+    function renderStandardPreview() {
+      const standard = currentStandard();
+      $("standardPreview").innerHTML = `<p><strong>Allowed product types:</strong><br>${standard.productTypes.map(escapeHtml).join("<br>")}</p>
+        <p><strong>Origin line 1:</strong> ${escapeHtml(standard.originLine1)}</p>
+        <p><strong>Origin line 2:</strong> ${escapeHtml(standard.originLine2)}</p>
+        <p class="help">Full-photo trial: all three checks search the complete Google Vision OCR output.</p>`;
+    }
+    function renderResults(items, rawText) {
+      const passed = items.filter(item => item.pass).length;
+      const average = Math.round(items.reduce((sum, item) => sum + item.score, 0) / items.length * 100);
+      const rows = items.map(item => `<tr>
+        <td>${escapeHtml(item.group)}</td><td>${escapeHtml(item.attribute)}</td><td>${escapeHtml(item.expected)}</td>
+        <td><span class="badge ${item.pass ? "pass" : "fail"}">${item.pass ? "PASS" : "FAIL"}</span></td>
+        <td>${Math.round(item.score * 100)}%</td><td>${escapeHtml(item.actual)}</td>
+      </tr>`).join("");
+      $("results").innerHTML = `<div class="summary">
+        <div class="metric"><span class="muted">Overall score</span><strong>${average}%</strong></div>
+        <div class="metric"><span class="muted">Checks passed</span><strong>${passed}/${items.length}</strong></div>
+        <div class="metric"><span class="muted">Decision</span><strong style="color:${passed === items.length ? "var(--ok)" : "var(--bad)"}">${passed === items.length ? "PASS" : "FAIL"}</strong></div>
+      </div><table class="result-table"><thead><tr><th>Group</th><th>Attribute</th><th>Expected</th><th>Result</th><th>Score</th><th>Best OCR match</th></tr></thead><tbody>${rows}</tbody></table>
+      <details><summary>View complete Google Vision OCR text</summary><pre>${escapeHtml(rawText)}</pre></details>`;
+      return { passed:passed === items.length, average };
+    }
+    function renderHistory() {
+      if (!history.length) {
+        $("history").innerHTML = '<div class="empty" style="margin-top:14px">No saved trial runs yet.</div>';
+        return;
+      }
+      $("history").innerHTML = `<table style="margin-top:14px"><thead><tr><th>Date</th><th>File</th><th>Engine</th><th>Standard</th><th>Score</th><th>Result</th></tr></thead><tbody>${history.map(item =>
+        `<tr><td>${new Date(item.date).toLocaleString()}</td><td>${escapeHtml(item.file)}</td><td>${escapeHtml(item.engine)}</td><td>${escapeHtml(item.standard)}</td><td>${item.score}%</td><td><span class="badge ${item.passed ? "pass" : "fail"}">${item.passed ? "PASS" : "FAIL"}</span></td></tr>`
+      ).join("")}</tbody></table>`;
+    }
+    function loadImage(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
+        image.onerror = error => { URL.revokeObjectURL(url); reject(error); };
+        image.src = url;
+      });
+    }
+    function canvasToBlob(canvas, quality) {
+      return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Could not prepare photo.")), "image/jpeg", quality));
+    }
+    async function prepareFullPhoto(file) {
+      const image = await loadImage(file);
+      const largest = Math.max(image.naturalWidth, image.naturalHeight);
+      if (largest <= MAX_LONG_EDGE && file.size < TARGET_BYTES && /^image\/(jpeg|png|webp)$/i.test(file.type)) {
+        return { blob:file, resized:false, width:image.naturalWidth, height:image.naturalHeight };
+      }
+      const scale = Math.min(1, MAX_LONG_EDGE / largest);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext("2d");
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      let quality = .92;
+      let blob = await canvasToBlob(canvas, quality);
+      while (blob.size >= TARGET_BYTES && quality > .55) {
+        quality -= .08;
+        blob = await canvasToBlob(canvas, quality);
+      }
+      if (blob.size >= TARGET_BYTES) throw new Error("The full photo remains too large. Please use a smaller photo.");
+      return { blob, resized:true, width:canvas.width, height:canvas.height };
+    }
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = () => reject(reader.error || new Error("Could not read photo."));
+        reader.readAsDataURL(blob);
+      });
+    }
+    async function recognizeFullPhoto(blob) {
+      $("status").textContent = "Uploading the complete photo to Google Vision...";
+      $("progress").firstElementChild.style.width = "35%";
+      const response = await fetch(`${VISION_API_URL}/ocr`, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ imageBase64:await blobToBase64(blob) })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Google Vision returned HTTP ${response.status}.`);
+      $("progress").firstElementChild.style.width = "90%";
+      if (!String(payload.text || "").trim()) throw new Error("Google Vision did not detect any text in the full photo.");
+      return payload;
+    }
+    async function setFile(file) {
+      if (!file || !file.type.startsWith("image/")) {
+        $("status").textContent = "Please choose a valid image.";
+        return;
+      }
+      selectedOriginalFile = file;
+      preparedVisionBlob = null;
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(file);
+      $("preview").src = previewUrl;
+      $("preview").hidden = false;
+      $("dropText").hidden = true;
+      $("runButton").disabled = true;
+      $("clearImage").disabled = false;
+      $("status").textContent = "Preparing the complete photo without cropping...";
+      try {
+        const prepared = await prepareFullPhoto(file);
+        preparedVisionBlob = prepared.blob;
+        $("runButton").disabled = false;
+        const sizeMb = (prepared.blob.size / 1024 / 1024).toFixed(2);
+        $("status").textContent = prepared.resized
+          ? `Full photo resized to ${prepared.width} × ${prepared.height} (${sizeMb} MB). Ready for Google Vision.`
+          : `Full photo kept at original size (${sizeMb} MB). Ready for Google Vision.`;
+      } catch (error) {
+        $("status").textContent = error.message || "Could not prepare the full photo.";
+      }
+    }
+    function clearFile() {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+      selectedOriginalFile = null;
+      preparedVisionBlob = null;
+      $("fileInput").value = "";
+      $("cameraInput").value = "";
+      $("preview").hidden = true;
+      $("dropText").hidden = false;
+      $("runButton").disabled = true;
+      $("clearImage").disabled = true;
+      $("status").textContent = "";
+      $("results").innerHTML = '<div class="empty">Upload a full photo and run Google Vision to see the comparison.</div>';
+    }
+    function openStandard(item) {
+      editingId = item?.id || null;
+      const standard = normalizeStandard(item || {...DEFAULT_STANDARD,id:crypto.randomUUID(),name:"New Nameplate Standard"});
+      $("dialogTitle").textContent = item ? "Edit nameplate standard" : "Create nameplate standard";
+      $("standardName").value = standard.name;
+      $("productTypes").value = standard.productTypes.join("\n");
+      $("originLine1").value = standard.originLine1;
+      $("originLine2").value = standard.originLine2;
+      $("standardDialog").showModal();
+    }
+
+    $("threshold").oninput = event => $("thresholdValue").textContent = `${event.target.value}%`;
+    $("standardSelect").onchange = renderStandardPreview;
+    $("chooseImage").onclick = () => $("fileInput").click();
+    $("takePhoto").onclick = () => $("cameraInput").click();
+    $("fileInput").onchange = event => setFile(event.target.files[0]);
+    $("cameraInput").onchange = event => setFile(event.target.files[0]);
+    $("clearImage").onclick = clearFile;
+    ["dragenter","dragover"].forEach(name => $("dropZone").addEventListener(name, event => {
+      event.preventDefault(); $("dropZone").classList.add("drag");
+    }));
+    ["dragleave","drop"].forEach(name => $("dropZone").addEventListener(name, event => {
+      event.preventDefault(); $("dropZone").classList.remove("drag");
+    }));
+    $("dropZone").addEventListener("drop", event => setFile(event.dataTransfer.files[0]));
+    $("newStandard").onclick = () => openStandard(null);
+    $("editStandard").onclick = () => openStandard(currentStandard());
+    $("standardForm").onsubmit = event => {
+      if (event.submitter?.value === "cancel") return;
+      event.preventDefault();
+      const productTypes = productTypesFrom($("productTypes").value);
+      if (!productTypes.length) return;
+      const item = {
+        id:editingId || crypto.randomUUID(),
+        name:$("standardName").value.trim(),
+        productTypes,
+        originLine1:$("originLine1").value.trim(),
+        originLine2:$("originLine2").value.trim()
+      };
+      const index = standards.findIndex(standard => standard.id === editingId);
+      if (index >= 0) standards[index] = item; else standards.push(item);
+      saveStandards();
+      renderStandards(item.id);
+      $("standardDialog").close();
+    };
+    $("runButton").onclick = async () => {
+      if (!preparedVisionBlob) return;
+      const button = $("runButton");
+      button.disabled = true;
+      $("progress").style.display = "block";
+      $("progress").firstElementChild.style.width = "5%";
+      try {
+        const vision = await recognizeFullPhoto(preparedVisionBlob);
+        const standard = currentStandard();
+        const items = compareStandard(standard, vision.text, Number($("threshold").value) / 100);
+        const summary = renderResults(items, vision.text);
+        history.unshift({
+          date:new Date().toISOString(),
+          file:selectedOriginalFile?.name || "full-photo",
+          engine:"Google Vision full-photo trial",
+          standard:standard.name,
+          score:summary.average,
+          passed:summary.passed,
+          text:vision.text
+        });
+        saveHistory();
+        renderHistory();
+        $("progress").firstElementChild.style.width = "100%";
+        $("status").textContent = `Google Vision full-photo OCR complete. ${vision.words?.length || 0} words detected.`;
+      } catch (error) {
+        $("status").textContent = `Google Vision full-photo trial failed: ${error.message}`;
+      } finally {
+        button.disabled = false;
+        setTimeout(() => $("progress").style.display = "none", 700);
+      }
+    };
+    $("clearHistory").onclick = () => {
+      if (confirm("Delete all saved full-photo trial runs?")) {
+        history = []; saveHistory(); renderHistory();
+      }
+    };
+    $("exportCsv").onclick = () => {
+      const quote = value => `"${String(value ?? "").replaceAll('"','""')}"`;
+      const csv = ["Date,File,Engine,Standard,Score,Result,OCR Text", ...history.map(item =>
+        [item.date,item.file,item.engine,item.standard,item.score,item.passed ? "PASS" : "FAIL",item.text].map(quote).join(",")
+      )].join("\n");
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([csv], {type:"text/csv"}));
+      link.download = "nameplate-google-vision-trial-history.csv";
+      link.click();
+    };
+
+    saveStandards();
+    renderStandards();
+    renderHistory();
+  </script>
+</body>
+</html>
