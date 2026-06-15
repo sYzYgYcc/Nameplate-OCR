@@ -177,6 +177,7 @@
   </dialog>
 
   <script>
+    const VISION_API_URL = "https://nameplate-ocr-api-906417989527.us-east1.run.app";
     const COLUMNS = [
       ["540", "STC"], ["540", "BNPI"], ["545", "STC"], ["545", "BNPI"], ["550", "STC"], ["550", "BNPI"],
       ["555", "STC"], ["555", "BNPI"], ["560", "STC"], ["560", "BNPI"]
@@ -580,6 +581,55 @@
       }
       ctx.putImageData(img, 0, 0);
     }
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.onerror = () => reject(reader.error || new Error("Could not read image."));
+        reader.readAsDataURL(blob);
+      });
+    }
+    function visionWordsInZone(words, zone) {
+      const selected = (words || []).filter(word => {
+        const cx = word.x + word.w / 2;
+        const cy = word.y + word.h / 2;
+        return cx >= zone.x && cx <= zone.x + zone.w && cy >= zone.y && cy <= zone.y + zone.h;
+      });
+      if (!selected.length) return "";
+
+      const heights = selected.map(word => word.h).sort((a, b) => a - b);
+      const medianHeight = heights[Math.floor(heights.length / 2)] || 0.03;
+      const tolerance = Math.max(0.018, medianHeight * 0.8);
+      const lines = [];
+      for (const word of selected.sort((a, b) => (a.y + a.h / 2) - (b.y + b.h / 2) || a.x - b.x)) {
+        const cy = word.y + word.h / 2;
+        let line = lines.find(item => Math.abs(item.cy - cy) <= tolerance);
+        if (!line) {
+          line = { cy, words: [] };
+          lines.push(line);
+        }
+        line.words.push(word);
+        line.cy = line.words.reduce((sum, item) => sum + item.y + item.h / 2, 0) / line.words.length;
+      }
+      return lines
+        .sort((a, b) => a.cy - b.cy)
+        .map(line => line.words.sort((a, b) => a.x - b.x).map(word => word.text).join(" "))
+        .join("\n");
+    }
+    async function recognizeWithGoogleVision(image) {
+      if (!VISION_API_URL.startsWith("https://")) throw new Error("Google Vision API URL is not configured.");
+      $("status").textContent = "Uploading confirmed nameplate crop to Google Vision OCR...";
+      $("progress").firstElementChild.style.width = "40%";
+      const response = await fetch(`${VISION_API_URL}/ocr`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: await blobToBase64(image) })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `Google Vision returned HTTP ${response.status}.`);
+      $("progress").firstElementChild.style.width = "85%";
+      return payload;
+    }
     async function recognizeImage(image, zone) {
       const worker = await Tesseract.createWorker("eng", 1, {
         logger: m => {
@@ -711,22 +761,33 @@
       const standard = currentStandard();
       const button = $("runButton"); button.disabled = true; $("progress").style.display = "block";
       try {
-        $("status").textContent = "Preparing layout crops...";
-        const productBest = await recognizeBestZone(selectedFile, OCR_ZONES.productType, standard.productTypes.join("\n"), [
-          { name: "nameplate model tight gray", x: 0.105, y: 0.08, w: 0.155, h: 0.34, preprocess: "gray", threshold: null, contrast: 1.10, scale: 6, psm: "13" },
-          { name: "nameplate model padded gray", x: 0.085, y: 0.02, w: 0.195, h: 0.52, preprocess: "gray", threshold: null, contrast: 1.10, scale: 5, psm: "7" },
-          { name: "nameplate model threshold", x: 0.085, y: 0.02, w: 0.195, h: 0.52, preprocess: "threshold", threshold: 182, contrast: 1.12, scale: 5, psm: "7" }
-        ]);
-        const originBest = await recognizeBestZone(selectedFile, OCR_ZONES.origin, `${standard.originLine1}\n${standard.originLine2}`, [
-          { name: "nameplate origin tight threshold", x: 0.805, y: 0.10, w: 0.165, h: 0.52, preprocess: "threshold", threshold: 168, contrast: 1.18, scale: 5, psm: "6" },
-          { name: "nameplate origin tight grayscale", x: 0.805, y: 0.10, w: 0.165, h: 0.52, preprocess: "gray", threshold: null, contrast: 1.12, scale: 5, psm: "6" },
-          { name: "nameplate origin padded", x: 0.775, y: 0.02, w: 0.205, h: 0.66, preprocess: "threshold", threshold: 168, contrast: 1.16, scale: 4, psm: "6" }
-        ]);
-        const productTypeText = productBest.text;
-        const originText = originBest.text;
+        let productTypeText = "";
+        let originText = "";
+        let rawText = "";
+        try {
+          const visionResult = await recognizeWithGoogleVision(selectedFile);
+          productTypeText = cleanOcrText(visionWordsInZone(visionResult.words, OCR_ZONES.productType) || visionResult.text, OCR_ZONES.productType);
+          originText = cleanOcrText(visionWordsInZone(visionResult.words, OCR_ZONES.origin) || visionResult.text, OCR_ZONES.origin);
+          rawText = `GOOGLE VISION FULL OCR\n${visionResult.text}\n\nPRODUCT TYPE REGION\n${productTypeText}\n\nPRODUCT ORIGIN REGION\n${originText}`;
+        } catch (visionError) {
+          console.warn("Google Vision failed; using Tesseract fallback.", visionError);
+          $("status").textContent = `Google Vision unavailable (${visionError.message}). Running local Tesseract fallback...`;
+          const productBest = await recognizeBestZone(selectedFile, OCR_ZONES.productType, standard.productTypes.join("\n"), [
+            { name: "nameplate model tight gray", x: 0.105, y: 0.08, w: 0.155, h: 0.34, preprocess: "gray", threshold: null, contrast: 1.10, scale: 6, psm: "13" },
+            { name: "nameplate model padded gray", x: 0.085, y: 0.02, w: 0.195, h: 0.52, preprocess: "gray", threshold: null, contrast: 1.10, scale: 5, psm: "7" },
+            { name: "nameplate model threshold", x: 0.085, y: 0.02, w: 0.195, h: 0.52, preprocess: "threshold", threshold: 182, contrast: 1.12, scale: 5, psm: "7" }
+          ]);
+          const originBest = await recognizeBestZone(selectedFile, OCR_ZONES.origin, `${standard.originLine1}\n${standard.originLine2}`, [
+            { name: "nameplate origin tight threshold", x: 0.805, y: 0.10, w: 0.165, h: 0.52, preprocess: "threshold", threshold: 168, contrast: 1.18, scale: 5, psm: "6" },
+            { name: "nameplate origin tight grayscale", x: 0.805, y: 0.10, w: 0.165, h: 0.52, preprocess: "gray", threshold: null, contrast: 1.12, scale: 5, psm: "6" },
+            { name: "nameplate origin padded", x: 0.775, y: 0.02, w: 0.205, h: 0.66, preprocess: "threshold", threshold: 168, contrast: 1.16, scale: 4, psm: "6" }
+          ]);
+          productTypeText = productBest.text;
+          originText = originBest.text;
+          rawText = `TESSERACT FALLBACK\n\nPRODUCT TYPE OCR - ${productBest.label}\n${productTypeText}\n\nPRODUCT ORIGIN OCR - ${originBest.label}\n${originText}`;
+        }
         const extracted = { productType: productTypeText, origin: originText, full: "" };
         const items = compareStandard(standard, extracted, Number($("threshold").value) / 100);
-        const rawText = `PRODUCT TYPE OCR - ${productBest.label}\n${productTypeText}\n\nPRODUCT ORIGIN OCR - ${originBest.label}\n${originText}`;
         const summary = renderResults(items, rawText);
         history.unshift({ date:new Date().toISOString(), file:selectedOriginalFile?.name || selectedFile.name || "confirmed-nameplate.png", standard:standard.name, score:summary.avg, passed:summary.passed, text:rawText });
         saveHistory(); renderHistory(); $("status").textContent = "OCR and comparison complete.";
