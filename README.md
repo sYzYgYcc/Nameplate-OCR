@@ -67,6 +67,8 @@ Open `trial.html` to test Google Vision without manual or automatic cropping. Th
 - The crop-first `index.html` workflow remains unchanged.
 - Large phone photos are resized only when needed, preserving the full image and aspect ratio.
 - The trial uses Google Vision only and does not silently fall back to Tesseract.
+- The trial also checks electric specs from the full OCR text: power tolerance, Pmax, Vmp, Imp, Voc, and Isc.
+- Pmax/Vmp/Imp/Voc/Isc expected values are selected from the matched product type rating and checked for both STC and BNPI values.
 - Trial history is stored separately under `nameplate-trial-history`.
 
 The result table reports each attribute independently with expected value, pass/fail result, score, and the closest OCR text. The **Best OCR match** column always shows OCR text rather than placeholder wording.

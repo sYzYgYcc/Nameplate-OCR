@@ -144,6 +144,8 @@
       <input id="originLine1" required>
       <label for="originLine2">Product origin line 2</label>
       <input id="originLine2" required>
+      <label for="powerTolerance">Power tolerance</label>
+      <input id="powerTolerance" required placeholder="0-3%">
       <div class="row" style="justify-content:flex-end;margin-top:16px">
         <button class="secondary" value="cancel">Cancel</button>
         <button class="primary" value="default">Save standard</button>
@@ -155,12 +157,26 @@
     const VISION_API_URL = "https://nameplate-ocr-api-906417989527.us-east1.run.app";
     const MAX_LONG_EDGE = 4096;
     const TARGET_BYTES = 8 * 1024 * 1024 - 64 * 1024;
+    const COLUMNS = [
+      ["540", "STC"], ["540", "BNPI"], ["545", "STC"], ["545", "BNPI"], ["550", "STC"], ["550", "BNPI"],
+      ["555", "STC"], ["555", "BNPI"], ["560", "STC"], ["560", "BNPI"]
+    ];
+    const ELECTRIC_ROWS = ["Pmax", "Vmp", "Imp", "Voc", "Isc"];
+    const SPEC_UNITS = { Pmax:"W", Vmp:"V", Imp:"A", Voc:"V", Isc:"A" };
     const DEFAULT_STANDARD = {
       id: "nameplate-default",
       name: "Illuminate Nameplate 540-560",
       productTypes: ["IL5-72HBD-545M", "IL5-72HBD-550M", "IL5-72HBD-555M"],
       originLine1: "Product of Turkey",
-      originLine2: "Assembled by Illuminate USA LLC"
+      originLine2: "Assembled by Illuminate USA LLC",
+      powerTolerance: "0-3%",
+      specs: {
+        Pmax: ["540", "591", "545", "597", "550", "602", "555", "607", "560", "613"],
+        Voc: ["49.50", "49.50", "49.65", "49.65", "49.80", "49.80", "49.95", "49.95", "50.10", "50.10"],
+        Isc: ["13.85", "15.16", "13.92", "15.24", "13.99", "15.31", "14.05", "15.38", "14.10", "15.43"],
+        Vmp: ["41.65", "41.65", "41.80", "41.80", "41.95", "41.95", "42.10", "42.10", "42.25", "42.25"],
+        Imp: ["12.97", "14.20", "13.04", "14.27", "13.12", "14.36", "13.19", "14.44", "13.26", "14.51"]
+      }
     };
     const $ = id => document.getElementById(id);
     let standards = (JSON.parse(localStorage.getItem("nameplate-standards") || "null") || [DEFAULT_STANDARD]).map(normalizeStandard);
@@ -182,7 +198,9 @@
         ...value,
         productTypes: productTypes.length ? productTypes : DEFAULT_STANDARD.productTypes,
         originLine1: value?.originLine1 || origin.match(/^(.+?)(?=\s+Assembled\s+by\s+)/i)?.[1] || DEFAULT_STANDARD.originLine1,
-        originLine2: value?.originLine2 || origin.match(/(Assembled\s+by\s+.+)$/i)?.[1] || DEFAULT_STANDARD.originLine2
+        originLine2: value?.originLine2 || origin.match(/(Assembled\s+by\s+.+)$/i)?.[1] || DEFAULT_STANDARD.originLine2,
+        powerTolerance: value?.powerTolerance || DEFAULT_STANDARD.powerTolerance,
+        specs: value?.specs || DEFAULT_STANDARD.specs
       };
     }
     function saveStandards() { localStorage.setItem("nameplate-standards", JSON.stringify(standards)); }
@@ -236,16 +254,70 @@
       }
       return best;
     }
+    function productRatingFromModel(model) {
+      return String(model || "").match(/-(\d{3})M?$/i)?.[1] || "";
+    }
+    function specColumnIndexes(rating) {
+      const stc = COLUMNS.findIndex(([value, test]) => value === rating && test === "STC");
+      const bnpi = COLUMNS.findIndex(([value, test]) => value === rating && test === "BNPI");
+      return stc >= 0 && bnpi >= 0 ? [stc, bnpi] : [];
+    }
+    function specExpectedValues(standard, row, rating) {
+      const indexes = specColumnIndexes(rating);
+      return indexes.map(index => standard.specs?.[row]?.[index]).filter(Boolean);
+    }
+    function escapeRegExp(value) {
+      return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+    function compactNumber(value) {
+      return String(value || "").replace(/\.00$/, "");
+    }
+    function matchElectricValue(value, unit, sourceText) {
+      const raw = String(value || "").trim();
+      const lines = ocrCandidates(sourceText);
+      const unitPattern = unit ? `\\s*${escapeRegExp(unit)}` : "";
+      const numericPattern = escapeRegExp(raw);
+      const compactPattern = escapeRegExp(compactNumber(raw));
+      const regexes = [
+        new RegExp(`\\b${numericPattern}${unitPattern}\\b`, "i"),
+        compactPattern !== numericPattern ? new RegExp(`\\b${compactPattern}${unitPattern}\\b`, "i") : null,
+        new RegExp(`\\b${numericPattern}\\b`, "i")
+      ].filter(Boolean);
+      const actual = lines.find(line => regexes.some(regex => regex.test(line)));
+      if (actual) return { actual, score:1 };
+      let best = { actual:"", score:0 };
+      for (const line of lines) {
+        const score = similarity(raw, line);
+        if (score > best.score) best = { actual:line, score };
+      }
+      return best;
+    }
+    function matchElectricValues(values, unit, sourceText) {
+      const matches = values.map(value => matchElectricValue(value, unit, sourceText));
+      const score = matches.length ? matches.reduce((sum, item) => sum + item.score, 0) / matches.length : 0;
+      const actual = [...new Set(matches.map(item => item.actual).filter(Boolean))].join(" / ");
+      return { actual, score };
+    }
     function compareStandard(standard, sourceText, threshold) {
+      const productBest = matchAnyExpectedText(standard.productTypes, sourceText);
+      const matchedRating = productRatingFromModel(productBest.matchedExpected) || productRatingFromModel(standard.productTypes[0]);
       const checks = [
         { group:"Product", attribute:"Product type", expected:standard.productTypes, mode:"productTypes" },
         { group:"Origin", attribute:"Product origin line 1", expected:standard.originLine1, mode:"text" },
-        { group:"Origin", attribute:"Product origin line 2", expected:standard.originLine2, mode:"text" }
+        { group:"Origin", attribute:"Product origin line 2", expected:standard.originLine2, mode:"text" },
+        { group:"Electric", attribute:"Power tolerance", expected:standard.powerTolerance, mode:"text" },
+        ...ELECTRIC_ROWS.map(row => ({
+          group:"Electric",
+          attribute:`${row} (${matchedRating} STC/BNPI)`,
+          expected:specExpectedValues(standard, row, matchedRating),
+          mode:"electric",
+          unit:SPEC_UNITS[row]
+        }))
       ];
       return checks.map(check => {
         const expected = Array.isArray(check.expected) ? check.expected.join(" | ") : String(check.expected || "");
-        const best = check.mode === "productTypes"
-          ? matchAnyExpectedText(check.expected, sourceText)
+        const best = check.mode === "productTypes" ? productBest
+          : check.mode === "electric" ? matchElectricValues(check.expected, check.unit, sourceText)
           : matchExpectedText(check.expected, sourceText);
         return {
           ...check,
@@ -267,7 +339,9 @@
       $("standardPreview").innerHTML = `<p><strong>Allowed product types:</strong><br>${standard.productTypes.map(escapeHtml).join("<br>")}</p>
         <p><strong>Origin line 1:</strong> ${escapeHtml(standard.originLine1)}</p>
         <p><strong>Origin line 2:</strong> ${escapeHtml(standard.originLine2)}</p>
-        <p class="help">Full-photo trial: all three checks search the complete Google Vision OCR output.</p>`;
+        <p><strong>Power tolerance:</strong> ${escapeHtml(standard.powerTolerance)}</p>
+        <p><strong>Electric spec source:</strong> STC/BNPI values are chosen from the matched product type rating.</p>
+        <p class="help">Full-photo trial: product, origin, and electric checks search the complete Google Vision OCR output.</p>`;
     }
     function renderResults(items, rawText) {
       const passed = items.filter(item => item.pass).length;
@@ -402,6 +476,7 @@
       $("productTypes").value = standard.productTypes.join("\n");
       $("originLine1").value = standard.originLine1;
       $("originLine2").value = standard.originLine2;
+      $("powerTolerance").value = standard.powerTolerance;
       $("standardDialog").showModal();
     }
 
@@ -431,7 +506,9 @@
         name:$("standardName").value.trim(),
         productTypes,
         originLine1:$("originLine1").value.trim(),
-        originLine2:$("originLine2").value.trim()
+        originLine2:$("originLine2").value.trim(),
+        powerTolerance:$("powerTolerance").value.trim(),
+        specs:currentStandard()?.specs || DEFAULT_STANDARD.specs
       };
       const index = standards.findIndex(standard => standard.id === editingId);
       if (index >= 0) standards[index] = item; else standards.push(item);
