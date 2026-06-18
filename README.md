@@ -1,35 +1,23 @@
-# Nameplate Product Info OCR Checker
+# Nameplate OCR Inspection App
 
-A browser-based nameplate checker using Google Cloud Vision OCR with Tesseract.js as an automatic fallback.
+A browser-based nameplate inspection app using Google Cloud Vision OCR through a Cloud Run backend.
 
-The app currently focuses on product information only. Each saved standard has separately editable attributes:
+Current inspection scope:
 
-- allowed product types on the left side of the nameplate, one model per line;
-- product origin line 1, for example `Product of Turkey`;
-- product origin line 2, for example `Assembled by Illuminate USA LLC`.
+- product type matching, with multiple valid model values per standard;
+- product origin matching, with editable origin lines;
+- first-pass printing deviation measurement for text-to-edge top and bottom gaps.
 
-To reduce OCR confusion, the app runs layout-aware OCR:
+Electric spec extraction is intentionally deferred for a later version.
 
-- after upload, the app auto-detects the long nameplate label and asks the user to confirm or adjust the crop;
-- OCR runs against the confirmed nameplate crop, not the full photo;
-- product type is read from the product/model region inside the confirmed crop;
-- product origin is read from the assembled/origin region inside the confirmed crop;
-- the confirmed nameplate crop is sent once to a secure Cloud Run endpoint backed by Google Cloud Vision;
-- Google Vision word coordinates are used to reconstruct the product type and origin regions;
-- if Google Vision is unavailable, the app automatically runs its previous layout-aware Tesseract OCR variants;
-- common OCR mistakes like `Illurninate`, `Assembied`, and `USALLC` are cleaned before comparison.
+## Live App
 
-Product type passes when the OCR text matches any configured product type for the selected standard.
+- Operator page: `https://syzygycc.github.io/Nameplate-OCR/index.html`
+- Admin page: `https://syzygycc.github.io/Nameplate-OCR/admin.html`
 
-Electrical specs are intentionally ignored for now.
+Operators select line `L1-L8`, upload or take a full photo, and run OCR. The app loads the standard bound to that line from shared Cloud Run config.
 
-## Run
-
-Open the hosted HTTPS app in a modern browser while connected to the internet.
-
-The confirmed nameplate crop is sent to the project's Google Cloud Run OCR endpoint for processing. Standards and results remain stored only in the browser. When the cloud endpoint is unavailable, the Tesseract fallback runs locally in the browser.
-
-## Google Vision backend
+## Google Vision Backend
 
 The frontend calls:
 
@@ -37,7 +25,13 @@ The frontend calls:
 
 The Node.js backend is stored in `api/`. It uses the Cloud Run runtime service account and does not expose an API key in the browser.
 
-To redeploy it:
+Endpoints:
+
+- `POST /ocr`: runs Google Vision `DOCUMENT_TEXT_DETECTION` and returns full text plus normalized word bounding boxes.
+- `GET /config`: reads shared admin/operator config.
+- `PUT /config`: saves shared admin/operator config.
+
+To redeploy:
 
 ```powershell
 gcloud run deploy nameplate-ocr-api `
@@ -50,54 +44,45 @@ gcloud run deploy nameplate-ocr-api `
   --max-instances 1
 ```
 
-The app submits one confirmed nameplate crop per inspection. Google Vision returns full OCR text and normalized word coordinates; the frontend uses those coordinates to reconstruct the product-type and origin regions.
-
-The same backend also stores the shared admin/operator configuration:
-
-- `GET /config`
-- `PUT /config`
-
-The config includes standards, L1-L8 line bindings, and the global pass threshold.
-
-## Use
-
-1. Select or create a nameplate standard.
-2. Click **Edit** to modify allowed product types, origin line 1, and origin line 2.
-3. Upload a nameplate image, drag/drop one, or click **Take Photo** on a phone.
-4. Adjust the red crop rectangle if needed and click **Use this crop**.
-5. Click **Run OCR and compare**.
-
-## Full-photo Google Vision operator app
-
-Open `index.html` to use the operator workflow without manual or automatic cropping. The operator selects line `L1-L8`; the app loads the standard bound to that line from shared Cloud Run config.
-
-- The older crop-first workflow has been removed from the public app.
-- Large phone photos are resized only when needed, preserving the full image and aspect ratio.
-- The operator page uses Google Vision only and does not silently fall back to Tesseract.
-- Product, origin, general electric specs, and STC/STC+BNPI performance specs are compared against the admin-defined standard.
-- Operator history is stored locally in the browser under `nameplate-operator-history`.
-
-## Admin configuration
+## Admin Configuration
 
 Open `admin.html` to configure:
 
 - standards and brand labels;
 - allowed product types;
 - origin wording lines;
-- general electric spec item/value pairs;
-- performance specs with `STC only` or `STC + BNPI`;
+- physical nameplate width/height in mm;
+- minimum top and bottom text-to-edge gap, default `0.5 mm`;
 - L1-L8 line bindings;
-- global pass threshold percentage.
+- global product/origin pass threshold percentage.
 
 The admin setup is stored by Cloud Run in a Google Cloud Storage JSON config object, so all devices share the same standards and line bindings.
 
-The result table reports each attribute independently with expected value, pass/fail result, score, and the closest OCR text. The **Best OCR match** column always shows OCR text rather than placeholder wording.
+## Printing Deviation
 
-Because the app now runs multiple OCR passes for better accuracy, each image may take longer than the first simple prototype.
+The app uses Google Vision word bounding boxes as the printed text reference, then estimates the long nameplate band in the browser using image processing. It converts pixels to millimeters using the admin-configured nameplate height.
+
+Deviation output:
+
+- `PASS`: top and bottom text-to-edge gaps meet the configured minimums.
+- `FAIL`: confidence is high, but one or both gaps are below the minimum.
+- `NEEDS_RETAKE`: the border/text boxes are not reliable enough, or physical nameplate height is not configured.
+
+For a real `0.5 mm` inspection decision, use close, sharp, low-glare photos where the full nameplate border is visible.
+
+## Operator Workflow
+
+1. Admin creates standards and binds each line.
+2. Operator opens `index.html`.
+3. Operator selects `L1-L8`.
+4. Operator uploads or takes a full photo.
+5. Operator clicks **Run OCR and compare**.
+6. App reports product/origin result and printing deviation result.
+7. Operator can export local inspection history as CSV.
 
 ## Install on iPhone as a PWA
 
-1. Host or open the app URL in Safari on iPhone.
+1. Open the app URL in Safari on iPhone.
 2. Tap **Share**.
 3. Tap **Add to Home Screen**.
 4. Launch **Nameplate OCR** from the Home Screen.

@@ -6,17 +6,17 @@
   <meta name="theme-color" content="#002060">
   <title>Nameplate OCR Admin</title>
   <style>
-    :root{--navy:#002060;--ink:#17212b;--muted:#64748b;--line:#dce3ea;--bg:#f4f7f9;--paper:#fff;--ok:#137333;--bad:#b42318}
+    :root{--navy:#002060;--ink:#17212b;--muted:#64748b;--line:#dce3ea;--bg:#f4f7f9;--paper:#fff;--bad:#b42318}
     *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--bg)}header{padding:30px max(24px,calc((100% - 1180px)/2));color:#fff;background:var(--navy)}header h1{margin:0 0 8px;font-size:clamp(26px,4vw,40px)}header p{margin:0;color:#dce8ff}.nav{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}.nav a{padding:9px 14px;border:1px solid #9bb6e5;border-radius:6px;color:#fff;text-decoration:none;font-weight:700}.nav a.active{color:var(--navy);background:#fff}
     main{max-width:1180px;margin:24px auto;padding:0 20px 40px}.grid{display:grid;grid-template-columns:360px 1fr;gap:20px}.card{padding:22px;border:1px solid var(--line);border-radius:10px;background:var(--paper);box-shadow:0 4px 16px #001b4410}.wide{grid-column:1/-1}h2{margin:0 0 16px;font-size:20px;color:var(--navy)}h3{margin:22px 0 10px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}label{display:block;margin:12px 0 5px;font-weight:700}select,input,textarea,button{font:inherit}select,input,textarea{width:100%;padding:9px;border:1px solid #bdc9d6;border-radius:6px;background:#fff}textarea{min-height:95px;resize:vertical}button{width:auto;padding:10px 15px;border:0;border-radius:6px;cursor:pointer;font-weight:700}.primary{color:#fff;background:var(--navy)}.secondary{color:var(--navy);border:1px solid #9fb0c2;background:#fff}.danger{color:#fff;background:var(--bad)}.help,.muted{color:var(--muted);font-size:14px}.status{min-height:22px;margin-top:10px;color:var(--muted)}
-    table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}th,td{padding:8px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f3f6f9;color:#435168}td input,td select{padding:7px}.table-actions{white-space:nowrap}.standard-list button{display:block;width:100%;margin:7px 0;text-align:left}.standard-list button.active{background:#e8eefc;border-color:var(--navy)}.line-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.line-grid label{margin:0}.empty{padding:20px;text-align:center;color:var(--muted);border:1px dashed var(--line)}
-    @media(max-width:900px){.grid{grid-template-columns:1fr}.line-grid{grid-template-columns:repeat(2,1fr)}}
+    .standard-list button{display:block;width:100%;margin:7px 0;text-align:left}.standard-list button.active{background:#e8eefc;border-color:var(--navy)}.line-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.line-grid label{margin:0}.measure-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.empty{padding:20px;text-align:center;color:var(--muted);border:1px dashed var(--line)}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}.line-grid,.measure-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.line-grid,.measure-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
   <header>
     <h1>Nameplate OCR Admin</h1>
-    <p>Configure shared standards, electric specs, pass threshold, and L1-L8 line bindings.</p>
+    <p>Configure shared standards, product/origin checks, printing deviation settings, and L1-L8 line bindings.</p>
     <nav class="nav">
       <a href="index.html">Operator page</a>
       <a href="admin.html" class="active">Admin page</a>
@@ -41,7 +41,7 @@
 
       <section class="card wide">
         <h2>Line bindings and threshold</h2>
-        <label for="thresholdPercent">Global pass threshold percentage</label>
+        <label for="thresholdPercent">Global product/origin pass threshold percentage</label>
         <input id="thresholdPercent" type="number" min="50" max="100" step="1">
         <h3>L1-L8 line bindings</h3>
         <div id="lineBindings" class="line-grid"></div>
@@ -57,28 +57,18 @@
   <script>
     const API_URL = "https://nameplate-ocr-api-906417989527.us-east1.run.app";
     const LINES = ["L1","L2","L3","L4","L5","L6","L7","L8"];
-    const DEFAULT_ROWS = ["Pmax","Vmp","Imp","Voc","Isc"];
-    const DEFAULT_UNITS = {Pmax:"W",Vmp:"V",Imp:"A",Voc:"V",Isc:"A"};
     const $ = id => document.getElementById(id);
     let config = null;
     let selectedId = "";
 
     function uid(){return crypto.randomUUID ? crypto.randomUUID() : `std-${Date.now()}-${Math.random().toString(16).slice(2)}`;}
-    function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
     function emptyConfig(){return{version:1,thresholdPercent:85,lineBindings:Object.fromEntries(LINES.map(line=>[line,""])),standards:[]};}
-    function newStandard(){return{id:uid(),name:"New Standard",brandLabel:"",productTypes:[],originLines:[],generalSpecs:[],performanceMode:"STC_ONLY",performanceSpecs:DEFAULT_ROWS.map(label=>({label,stc:"",bnpi:"",unit:DEFAULT_UNITS[label]||""}))};}
+    function newStandard(){return{id:uid(),name:"New Standard",brandLabel:"",productTypes:[],originLines:[],nameplateWidthMm:0,nameplateHeightMm:0,minTopGapMm:0.5,minBottomGapMm:0.5,generalSpecs:[],performanceMode:"STC_ONLY",performanceSpecs:[]};}
     function selectedStandard(){return (config?.standards||[]).find(item=>item.id===selectedId);}
     function optionsHtml(selected){return `<option value="">No standard</option>${(config.standards||[]).map(item=>`<option value="${item.id}" ${item.id===selected?"selected":""}>${escapeHtml(item.name)}</option>`).join("")}`;}
     function productTypesText(s){return (s.productTypes||[]).join("\n");}
     function originLinesText(s){return (s.originLines||[]).join("\n");}
-    function rowsHtml(rows, type){return (rows||[]).map((row,index)=>`<tr data-index="${index}">${type==="general"?`
-      <td><input data-field="label" value="${escapeHtml(row.label)}" placeholder="Item label"></td>
-      <td><input data-field="value" value="${escapeHtml(row.value)}" placeholder="Expected value"></td>`:`
-      <td><input data-field="label" value="${escapeHtml(row.label)}" placeholder="Pmax"></td>
-      <td><input data-field="stc" value="${escapeHtml(row.stc)}" placeholder="STC"></td>
-      <td><input data-field="bnpi" value="${escapeHtml(row.bnpi)}" placeholder="BNPI"></td>
-      <td><input data-field="unit" value="${escapeHtml(row.unit)}" placeholder="W/V/A"></td>`}
-      <td class="table-actions"><button class="secondary" data-action="remove-${type}" data-index="${index}" type="button">Remove</button></td></tr>`).join("");}
     function renderStandardList(){if(!config.standards.length){$("standardList").innerHTML='<div class="empty">No standards yet.</div>';return;}$("standardList").innerHTML=config.standards.map(item=>`<button type="button" class="secondary ${item.id===selectedId?"active":""}" data-id="${item.id}">${escapeHtml(item.name)}<br><span class="muted">${escapeHtml(item.brandLabel||"No brand label")}</span></button>`).join("");}
     function renderLineBindings(){ $("lineBindings").innerHTML=LINES.map(line=>`<label>${line}<select data-line="${line}">${optionsHtml(config.lineBindings?.[line]||"")}</select></label>`).join(""); }
     function renderEditor(){const s=selectedStandard();if(!s){$("editor").innerHTML='<div class="empty">Select or create a standard.</div>';return;}$("editor").innerHTML=`
@@ -86,29 +76,27 @@
       <label>Brand label</label><input id="brandLabel" value="${escapeHtml(s.brandLabel||"")}" placeholder="LONGi, Illuminate, etc.">
       <label>Allowed product types, one per line</label><textarea id="productTypes">${escapeHtml(productTypesText(s))}</textarea>
       <label>Origin lines, one per line</label><textarea id="originLines">${escapeHtml(originLinesText(s))}</textarea>
-      <h3>General electric specs</h3>
-      <p class="help">Editable item/value pairs. Example: Power Tolerance → 0 ~ 3%.</p>
-      <table><thead><tr><th>Item</th><th>Expected value</th><th></th></tr></thead><tbody id="generalRows">${rowsHtml(s.generalSpecs,"general")}</tbody></table>
-      <button class="secondary" id="addGeneral" type="button" style="margin-top:8px">Add general spec</button>
-      <h3>Performance specs</h3>
-      <label>Performance mode</label><select id="performanceMode"><option value="STC_ONLY" ${s.performanceMode!=="STC_BNPI"?"selected":""}>STC only</option><option value="STC_BNPI" ${s.performanceMode==="STC_BNPI"?"selected":""}>STC + BNPI</option></select>
-      <table><thead><tr><th>Row</th><th>STC</th><th>BNPI</th><th>Unit</th><th></th></tr></thead><tbody id="performanceRows">${rowsHtml(s.performanceSpecs,"performance")}</tbody></table>
-      <button class="secondary" id="addPerformance" type="button" style="margin-top:8px">Add performance row</button>`;
+      <h3>Printing deviation settings</h3>
+      <p class="help">Used to convert pixels into millimeters. Configure the real physical label size before using the 0.5 mm gap result for inspection decisions.</p>
+      <div class="measure-grid">
+        <label>Nameplate width (mm)<input id="nameplateWidthMm" type="number" min="0" step="0.1" value="${escapeHtml(s.nameplateWidthMm||"")}"></label>
+        <label>Nameplate height (mm)<input id="nameplateHeightMm" type="number" min="0" step="0.1" value="${escapeHtml(s.nameplateHeightMm||"")}"></label>
+        <label>Minimum top gap (mm)<input id="minTopGapMm" type="number" min="0" step="0.1" value="${escapeHtml(s.minTopGapMm??0.5)}"></label>
+        <label>Minimum bottom gap (mm)<input id="minBottomGapMm" type="number" min="0" step="0.1" value="${escapeHtml(s.minBottomGapMm??0.5)}"></label>
+      </div>
+      <p class="help">Electric spec extraction is intentionally deferred for a later version.</p>`;
     }
     function render(){renderStandardList();renderLineBindings();renderEditor();$("thresholdPercent").value=config.thresholdPercent||85;}
-    function readEditor(){const s=selectedStandard();if(!s)return;s.name=$("stdName")?.value.trim()||"Untitled Standard";s.brandLabel=$("brandLabel")?.value.trim()||"";s.productTypes=($("productTypes")?.value||"").split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);s.originLines=($("originLines")?.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);s.performanceMode=$("performanceMode")?.value==="STC_BNPI"?"STC_BNPI":"STC_ONLY";
-      s.generalSpecs=[...document.querySelectorAll("#generalRows tr")].map(tr=>({label:tr.querySelector('[data-field="label"]').value.trim(),value:tr.querySelector('[data-field="value"]').value.trim()})).filter(x=>x.label||x.value);
-      s.performanceSpecs=[...document.querySelectorAll("#performanceRows tr")].map(tr=>({label:tr.querySelector('[data-field="label"]').value.trim(),stc:tr.querySelector('[data-field="stc"]').value.trim(),bnpi:tr.querySelector('[data-field="bnpi"]').value.trim(),unit:tr.querySelector('[data-field="unit"]').value.trim()})).filter(x=>x.label||x.stc||x.bnpi);}
+    function readEditor(){const s=selectedStandard();if(!s)return;s.name=$("stdName")?.value.trim()||"Untitled Standard";s.brandLabel=$("brandLabel")?.value.trim()||"";s.productTypes=($("productTypes")?.value||"").split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);s.originLines=($("originLines")?.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);s.nameplateWidthMm=Number($("nameplateWidthMm")?.value||0);s.nameplateHeightMm=Number($("nameplateHeightMm")?.value||0);s.minTopGapMm=Number($("minTopGapMm")?.value||0.5);s.minBottomGapMm=Number($("minBottomGapMm")?.value||0.5);s.generalSpecs=[];s.performanceMode="STC_ONLY";s.performanceSpecs=[];}
     function readBindings(){config.thresholdPercent=Math.max(50,Math.min(100,Number($("thresholdPercent").value||85)));for(const select of document.querySelectorAll("[data-line]"))config.lineBindings[select.dataset.line]=select.value;}
     async function loadConfig(){const res=await fetch(`${API_URL}/config`);if(!res.ok)throw new Error(`Config request failed: ${res.status}`);config=await res.json();if(!config.standards)config=emptyConfig();selectedId=config.standards[0]?.id||"";render();$("status").textContent="Config loaded.";}
     async function saveConfig(){readEditor();readBindings();const res=await fetch(`${API_URL}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(config)});const payload=await res.json().catch(()=>({}));if(!res.ok)throw new Error(payload.error||`Save failed: ${res.status}`);config=payload;render();$("status").textContent="Shared config saved.";}
-    document.addEventListener("click",event=>{const standardButton=event.target.closest("[data-id]");if(standardButton){readEditor();selectedId=standardButton.dataset.id;render();return;}const action=event.target.dataset.action;if(action==="remove-general"){readEditor();selectedStandard().generalSpecs.splice(Number(event.target.dataset.index),1);renderEditor();}if(action==="remove-performance"){readEditor();selectedStandard().performanceSpecs.splice(Number(event.target.dataset.index),1);renderEditor();}});
+    document.addEventListener("click",event=>{const standardButton=event.target.closest("[data-id]");if(standardButton){readEditor();selectedId=standardButton.dataset.id;render();}});
     document.addEventListener("input",event=>{if(event.target.closest("#editor"))readEditor();});
     $("newStandard").onclick=()=>{readEditor();const s=newStandard();config.standards.push(s);selectedId=s.id;render();};
     $("deleteStandard").onclick=()=>{if(!selectedId)return;if(!confirm("Delete selected standard?"))return;config.standards=config.standards.filter(s=>s.id!==selectedId);for(const line of LINES){if(config.lineBindings[line]===selectedId)config.lineBindings[line]="";}selectedId=config.standards[0]?.id||"";render();};
     $("reloadConfig").onclick=()=>loadConfig().catch(error=>$("status").textContent=error.message);
     $("saveConfig").onclick=()=>saveConfig().catch(error=>$("status").textContent=error.message);
-    document.addEventListener("click",event=>{if(event.target.id==="addGeneral"){readEditor();selectedStandard().generalSpecs.push({label:"",value:""});renderEditor();}if(event.target.id==="addPerformance"){readEditor();selectedStandard().performanceSpecs.push({label:"",stc:"",bnpi:"",unit:""});renderEditor();}});
     config=emptyConfig();render();loadConfig().catch(error=>$("status").textContent=error.message);
   </script>
 </body>
