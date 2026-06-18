@@ -52,6 +52,13 @@ gcloud run deploy nameplate-ocr-api `
 
 The app submits one confirmed nameplate crop per inspection. Google Vision returns full OCR text and normalized word coordinates; the frontend uses those coordinates to reconstruct the product-type and origin regions.
 
+The same backend also stores the shared admin/operator configuration:
+
+- `GET /config`
+- `PUT /config`
+
+The config includes standards, L1-L8 line bindings, and the global pass threshold.
+
 ## Use
 
 1. Select or create a nameplate standard.
@@ -62,14 +69,27 @@ The app submits one confirmed nameplate crop per inspection. Google Vision retur
 
 ## Full-photo Google Vision trial
 
-Open `trial.html` to test Google Vision without manual or automatic cropping. The trial sends the complete uploaded or camera photo to the existing Cloud Run endpoint, then compares the full OCR text against every configured product type and both origin lines.
+Open `trial.html` to use the operator workflow without manual or automatic cropping. The operator selects line `L1-L8`; the app loads the standard bound to that line from shared Cloud Run config.
 
 - The crop-first `index.html` workflow remains unchanged.
 - Large phone photos are resized only when needed, preserving the full image and aspect ratio.
-- The trial uses Google Vision only and does not silently fall back to Tesseract.
-- The trial also checks electric specs from the full OCR text: power tolerance, Pmax, Vmp, Imp, Voc, and Isc.
-- Pmax/Vmp/Imp/Voc/Isc expected values are selected from the matched product type rating and checked for both STC and BNPI values.
-- Trial history is stored separately under `nameplate-trial-history`.
+- The operator page uses Google Vision only and does not silently fall back to Tesseract.
+- Product, origin, general electric specs, and STC/STC+BNPI performance specs are compared against the admin-defined standard.
+- Operator history is stored locally in the browser under `nameplate-operator-history`.
+
+## Admin configuration
+
+Open `admin.html` to configure:
+
+- standards and brand labels;
+- allowed product types;
+- origin wording lines;
+- general electric spec item/value pairs;
+- performance specs with `STC only` or `STC + BNPI`;
+- L1-L8 line bindings;
+- global pass threshold percentage.
+
+The admin setup is stored by Cloud Run in a Google Cloud Storage JSON config object, so all devices share the same standards and line bindings.
 
 The result table reports each attribute independently with expected value, pass/fail result, score, and the closest OCR text. The **Best OCR match** column always shows OCR text rather than placeholder wording.
 
