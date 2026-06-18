@@ -5,10 +5,9 @@ A browser-based nameplate inspection app using Google Cloud Vision OCR through a
 Current inspection scope:
 
 - product type matching, with multiple valid model values per standard;
-- product origin matching, with editable origin lines;
-- first-pass printing deviation measurement for text-to-edge top and bottom gaps.
+- product origin matching, with editable origin lines.
 
-Electric spec extraction is intentionally deferred for a later version.
+Electric spec extraction is intentionally deferred.
 
 ## Live App
 
@@ -51,27 +50,10 @@ Open `admin.html` to configure:
 - standards and brand labels;
 - allowed product types;
 - origin wording lines;
-- physical nameplate width/height in mm;
-- minimum top and bottom text-to-edge gap, default `0.5 mm`;
-- printing deviation border mode: auto-detected border or fixed photo border;
 - L1-L8 line bindings;
 - global product/origin pass threshold percentage.
 
 The admin setup is stored by Cloud Run in a Google Cloud Storage JSON config object, so all devices share the same standards and line bindings.
-
-## Printing Deviation
-
-The app uses Google Vision word bounding boxes as the printed text reference, then estimates the long nameplate band in the browser using image processing. It converts pixels to millimeters using the admin-configured nameplate height.
-
-For a fixed-border test, set the standard's border mode to **Fixed photo border** and enter the expected nameplate rectangle as X/Y/width/height percentages of the full image. This is useful when photos are taken with a guide frame or fixture where the nameplate always appears in the same location.
-
-Deviation output:
-
-- `PASS`: top and bottom text-to-edge gaps meet the configured minimums.
-- `FAIL`: confidence is high, but one or both gaps are below the minimum.
-- `NEEDS_RETAKE`: the border/text boxes are not reliable enough, or physical nameplate height is not configured.
-
-For a real `0.5 mm` inspection decision, use close, sharp, low-glare photos where the full nameplate border is visible.
 
 ## Operator Workflow
 
@@ -80,7 +62,7 @@ For a real `0.5 mm` inspection decision, use close, sharp, low-glare photos wher
 3. Operator selects `L1-L8`.
 4. Operator uploads or takes a full photo.
 5. Operator clicks **Run OCR and compare**.
-6. App reports product/origin result and printing deviation result.
+6. App reports product/origin result.
 7. Operator can export local inspection history as CSV.
 
 ## Install on iPhone as a PWA

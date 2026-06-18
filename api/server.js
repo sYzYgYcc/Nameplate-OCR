@@ -63,17 +63,6 @@ function normalizeConfig(input) {
       brandLabel: String(item.brandLabel || "").trim(),
       productTypes: Array.isArray(item.productTypes) ? item.productTypes.map(String).map(x => x.trim()).filter(Boolean) : [],
       originLines: Array.isArray(item.originLines) ? item.originLines.map(String).map(x => x.trim()).filter(Boolean) : [],
-      nameplateWidthMm: Math.max(0, Number(item.nameplateWidthMm || 0)),
-      nameplateHeightMm: Math.max(0, Number(item.nameplateHeightMm || 0)),
-      minTopGapMm: Math.max(0, Number(item.minTopGapMm || 0.5)),
-      minBottomGapMm: Math.max(0, Number(item.minBottomGapMm || 0.5)),
-      borderMode: item.borderMode === "FIXED" ? "FIXED" : "AUTO",
-      fixedBorder: {
-        x: Math.max(0, Math.min(100, Number(item.fixedBorder?.x || 0))),
-        y: Math.max(0, Math.min(100, Number(item.fixedBorder?.y || 0))),
-        w: Math.max(0, Math.min(100, Number(item.fixedBorder?.w || 0))),
-        h: Math.max(0, Math.min(100, Number(item.fixedBorder?.h || 0)))
-      },
       generalSpecs: Array.isArray(item.generalSpecs) ? item.generalSpecs.map(spec => ({
         label: String(spec?.label || "").trim(),
         value: String(spec?.value || "").trim()
