@@ -67,11 +67,11 @@ The config includes standards, L1-L8 line bindings, and the global pass threshol
 4. Adjust the red crop rectangle if needed and click **Use this crop**.
 5. Click **Run OCR and compare**.
 
-## Full-photo Google Vision trial
+## Full-photo Google Vision operator app
 
-Open `trial.html` to use the operator workflow without manual or automatic cropping. The operator selects line `L1-L8`; the app loads the standard bound to that line from shared Cloud Run config.
+Open `index.html` to use the operator workflow without manual or automatic cropping. The operator selects line `L1-L8`; the app loads the standard bound to that line from shared Cloud Run config.
 
-- The crop-first `index.html` workflow remains unchanged.
+- The older crop-first workflow has been removed from the public app.
 - Large phone photos are resized only when needed, preserving the full image and aspect ratio.
 - The operator page uses Google Vision only and does not silently fall back to Tesseract.
 - Product, origin, general electric specs, and STC/STC+BNPI performance specs are compared against the admin-defined standard.

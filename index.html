@@ -2,132 +2,58 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#002060">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Nameplate OCR">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="apple-touch-icon" href="icon-192.png">
-  <title>Nameplate Product Info OCR Checker</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <title>Nameplate OCR Operator</title>
   <style>
-    :root {
-      --ink:#17212b; --muted:#64748b; --line:#dce3ea; --paper:#fff; --bg:#f4f7f9;
-      --brand:#135d66; --brand2:#0d474e; --ok:#137333; --bad:#b42318; --warn:#a15c00; --navy:#002060;
-    }
-    * { box-sizing: border-box; }
-    body { margin:0; color:var(--ink); background:var(--bg); font:15px/1.5 Inter, ui-sans-serif, system-ui, sans-serif; }
-    header { color:#fff; background:#002060; padding:28px max(20px,calc((100vw - 1240px) / 2)); }
-    header h1 { margin:0; font-size:28px; letter-spacing:-.5px; }
-    header p { margin:5px 0 0; color:#d7f3f1; }
-    main { max-width:1240px; margin:24px auto; padding:0 20px 40px; }
-    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:20px; }
-    .card { background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:0 3px 16px #16313b0a; }
-    .wide { grid-column:1 / -1; }
-    h2 { margin:0 0 14px; font-size:18px; }
-    h3 { margin:20px 0 8px; font-size:15px; }
-    label { display:block; margin:12px 0 5px; color:#334155; font-weight:650; }
-    input, select, textarea, button { font:inherit; }
-    input, select, textarea { width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:9px 10px; background:#fff; }
-    textarea { min-height:92px; resize:vertical; }
-    input:focus, select:focus, textarea:focus { outline:2px solid #6cc8c0; border-color:transparent; }
-    button { border:0; border-radius:8px; padding:9px 14px; font-weight:700; cursor:pointer; }
-    button.primary { color:#fff; background:var(--brand); }
-    button.primary:hover { background:var(--brand2); }
-    button.secondary { color:#334155; background:#e8eef2; }
-    button.danger { color:var(--bad); background:#fff0ee; }
-    button:disabled { opacity:.55; cursor:not-allowed; }
-    .row { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
-    .row > select { flex:1; min-width:180px; }
-    .drop { display:grid; place-items:center; min-height:205px; border:2px dashed #a8bbc4; border-radius:12px; text-align:center; padding:15px; cursor:pointer; background:#f9fbfc; }
-    .drop.drag { border-color:var(--brand); background:#e8f7f6; }
-    .drop img { max-height:240px; max-width:100%; border-radius:8px; }
-    .crop-panel { display:none; margin-top:14px; padding:12px; border:1px solid var(--line); border-radius:12px; background:#f8fafc; }
-    .crop-stage { position:relative; display:inline-block; max-width:100%; line-height:0; border-radius:8px; overflow:hidden; background:#e2e8f0; }
-    .crop-stage img { display:block; max-width:100%; max-height:360px; }
-    .crop-box { position:absolute; border:3px solid #e11d24; box-shadow:0 0 0 9999px #00000030; cursor:move; touch-action:none; }
-    .crop-handle { position:absolute; right:-7px; bottom:-7px; width:16px; height:16px; border:2px solid #fff; border-radius:50%; background:#e11d24; cursor:nwse-resize; }
-    .crop-controls { display:grid; grid-template-columns:repeat(4, minmax(80px, 1fr)); gap:8px; margin-top:10px; }
-    .crop-controls label { margin:0; font-size:12px; }
-    .crop-controls input { padding:5px; }
-    .muted { color:var(--muted); }
-    .help { font-size:13px; color:var(--muted); }
-    .progress { display:none; margin-top:14px; height:8px; overflow:hidden; border-radius:99px; background:#e2e8f0; }
-    .progress span { display:block; width:0; height:100%; background:#21a49a; transition:width .2s; }
-    .status { margin-top:7px; min-height:22px; color:var(--muted); }
-    .summary { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
-    .metric { min-width:120px; padding:12px; border-radius:10px; background:#f3f6f8; }
-    .metric strong { display:block; font-size:22px; }
-    .badge { display:inline-block; border-radius:99px; padding:2px 8px; font-size:12px; font-weight:750; }
-    .pass { color:var(--ok); background:#e8f5eb; }
-    .fail { color:var(--bad); background:#ffebe8; }
-    .empty { padding:25px; color:var(--muted); text-align:center; border:1px dashed var(--line); border-radius:9px; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { padding:8px; border:1px solid var(--line); text-align:left; vertical-align:top; }
-    th { color:#475569; font-size:12px; text-transform:uppercase; background:#f8fafc; }
-    .spec th, .spec td { text-align:center; }
-    .spec td:first-child, .spec th:first-child { text-align:left; font-weight:700; }
-    .spec input { min-width:72px; padding:7px; text-align:center; }
-    .result-table td:nth-child(4), .result-table td:nth-child(5) { text-align:center; }
-    dialog { width:min(1120px,calc(100% - 30px)); border:0; border-radius:14px; padding:22px; box-shadow:0 20px 60px #0004; }
-    dialog::backdrop { background:#10252b99; }
-    details { margin-top:14px; }
-    pre { white-space:pre-wrap; background:#0f172a; color:#e2e8f0; padding:14px; border-radius:10px; overflow:auto; }
-    @media (max-width:780px) { .grid { grid-template-columns:1fr; } .spec-wrap { overflow-x:auto; } }
+    :root{--navy:#002060;--ink:#17212b;--muted:#64748b;--line:#dce3ea;--bg:#f4f7f9;--paper:#fff;--ok:#137333;--bad:#b42318;--warn:#a15c00}
+    *{box-sizing:border-box} body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--bg)}
+    header{padding:30px max(24px,calc((100% - 1180px)/2));color:#fff;background:var(--navy)} header h1{margin:0 0 8px;font-size:clamp(26px,4vw,40px)} header p{margin:0;color:#dce8ff}
+    .nav{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}.nav a{padding:9px 14px;border:1px solid #9bb6e5;border-radius:6px;color:#fff;text-decoration:none;font-weight:700}.nav a.active{color:var(--navy);background:#fff}
+    main{max-width:1180px;margin:24px auto;padding:0 20px 40px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.card{padding:22px;border:1px solid var(--line);border-radius:10px;background:var(--paper);box-shadow:0 4px 16px #001b4410}.wide{grid-column:1/-1}
+    h2{margin:0 0 16px;font-size:20px;color:var(--navy)}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}select,input,button{font:inherit}select,input{padding:10px;border:1px solid #bdc9d6;border-radius:6px;background:#fff}select{min-width:220px}button{padding:10px 15px;border:0;border-radius:6px;cursor:pointer;font-weight:700}button:disabled{cursor:not-allowed;opacity:.45}
+    .primary{color:#fff;background:var(--navy)}.secondary{color:var(--navy);border:1px solid #9fb0c2;background:#fff}.danger{color:#fff;background:var(--bad)}.help,.muted{color:var(--muted);font-size:14px}.notice{padding:12px 14px;border-left:4px solid var(--warn);background:#fff7e8;color:#674000}
+    .drop{min-height:240px;display:flex;align-items:center;justify-content:center;text-align:center;border:2px dashed #9fb0c2;border-radius:10px;background:#f8fafc;overflow:hidden;cursor:pointer}.drop.drag{border-color:var(--navy);background:#edf3ff}.drop img{display:block;max-width:100%;max-height:420px;object-fit:contain}
+    .progress{display:none;height:8px;margin-top:14px;border-radius:99px;overflow:hidden;background:#e4eaf0}.progress span{display:block;width:0;height:100%;background:var(--navy);transition:width .2s}.status{min-height:22px;margin-top:10px;color:var(--muted)}
+    .summary{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px}.metric{min-width:150px;padding:13px;border:1px solid var(--line);border-radius:8px;background:#f8fafc}.metric strong{display:block;margin-top:5px;font-size:24px}
+    table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f3f6f9;color:#435168}.badge{display:inline-block;padding:4px 8px;border-radius:99px;color:#fff;font-weight:700;font-size:12px}.pass{background:var(--ok)}.fail{background:var(--bad)}
+    details{margin-top:15px}pre{max-height:320px;overflow:auto;white-space:pre-wrap;padding:12px;background:#111827;color:#e5eefb}.empty{padding:20px;text-align:center;color:var(--muted);border:1px dashed var(--line)}
+    @media(max-width:800px){.grid{grid-template-columns:1fr}.wide{grid-column:auto}.result-table{display:block;overflow-x:auto}}
   </style>
 </head>
 <body>
   <header>
-    <h1>Nameplate Product Info OCR Checker</h1>
-    <p>Extract product type and two-line product origin from fixed nameplate regions and compare them against your standard.</p>
-    <p style="margin-top:12px"><a href="trial.html" style="color:#fff;font-weight:700">Open full-photo Google Vision trial →</a></p>
+    <h1>Nameplate OCR Operator</h1>
+    <p>Select the production line, upload a full nameplate photo, and compare against the admin-bound standard.</p>
+    <nav class="nav">
+      <a href="index.html" class="active">Operator page</a>
+      <a href="admin.html">Admin page</a>
+    </nav>
   </header>
+
   <main>
     <div class="grid">
       <section class="card">
-        <h2>1. Nameplate standard</h2>
+        <h2>1. Select line</h2>
         <div class="row">
-          <select id="standardSelect" aria-label="Nameplate standard"></select>
-          <button class="secondary" id="editStandard">Edit</button>
-          <button class="secondary" id="newStandard">New</button>
+          <select id="lineSelect" aria-label="Production line"></select>
+          <button class="secondary" id="reloadConfig">Reload config</button>
         </div>
-        <p class="help">For now this checks product information only: product type plus the two-line origin wording.</p>
-        <label for="threshold">Pass threshold: <span id="thresholdValue">85%</span></label>
-        <input id="threshold" type="range" min="50" max="100" value="85">
+        <div id="lineStatus" class="status"></div>
       </section>
 
       <section class="card">
-        <h2>2. Upload image</h2>
-        <label class="drop" id="dropZone">
+        <h2>2. Upload full photo</h2>
+        <div class="notice">This operator app sends the complete uploaded or captured image to Google Vision for OCR.</div>
+        <label class="drop" id="dropZone" style="margin-top:14px">
           <input id="fileInput" type="file" accept="image/*" hidden>
           <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
-          <span id="dropText"><strong>Choose or drop a nameplate image</strong><br><span class="muted">PNG, JPG, WEBP, or a phone photo</span></span>
-          <img id="preview" alt="Uploaded preview" hidden>
+          <span id="dropText"><strong>Choose or drop a full nameplate photo</strong><br><span class="muted">PNG, JPG, WEBP, or a phone photo</span></span>
+          <img id="preview" alt="Full uploaded photo" hidden>
         </label>
         <div class="row" style="margin-top:14px">
           <button class="secondary" id="chooseImage" type="button">Choose Image</button>
           <button class="secondary" id="takePhoto" type="button">Take Photo</button>
-        </div>
-        <div id="cropPanel" class="crop-panel">
-          <h3 style="margin-top:0">Confirm nameplate crop</h3>
-          <p class="help">Adjust the red rectangle so it covers only the long nameplate label, then click Use this crop.</p>
-          <div class="crop-stage" id="cropStage">
-            <img id="cropImage" alt="Uploaded image for crop confirmation">
-            <div class="crop-box" id="cropBox"><span class="crop-handle" id="cropHandle"></span></div>
-          </div>
-          <div class="crop-controls">
-            <label>X %<input id="cropX" type="number" min="0" max="100" step="0.1"></label>
-            <label>Y %<input id="cropY" type="number" min="0" max="100" step="0.1"></label>
-            <label>W %<input id="cropW" type="number" min="1" max="100" step="0.1"></label>
-            <label>H %<input id="cropH" type="number" min="1" max="100" step="0.1"></label>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <button class="primary" id="useCrop" type="button">Use this crop</button>
-            <button class="secondary" id="resetCrop" type="button">Reset auto crop</button>
-          </div>
-        </div>
-        <div class="row" style="margin-top:14px">
           <button class="primary" id="runButton" disabled>Run OCR and compare</button>
           <button class="secondary" id="clearImage" disabled>Clear</button>
         </div>
@@ -136,18 +62,18 @@
       </section>
 
       <section class="card wide">
-        <h2>Current standard preview</h2>
+        <h2>Bound standard preview</h2>
         <div id="standardPreview"></div>
       </section>
 
       <section class="card wide">
         <h2>Comparison result</h2>
-        <div id="results"><div class="empty">Upload an image and run OCR to see each attribute result.</div></div>
+        <div id="results"><div class="empty">Select a configured line, upload a full photo, and run OCR.</div></div>
       </section>
 
       <section class="card wide">
         <div class="row" style="justify-content:space-between">
-          <h2 style="margin:0">Saved runs</h2>
+          <h2 style="margin:0">Saved operator runs</h2>
           <div class="row">
             <button class="secondary" id="exportCsv">Export CSV</button>
             <button class="danger" id="clearHistory">Clear history</button>
@@ -158,654 +84,62 @@
     </div>
   </main>
 
-  <dialog id="standardDialog">
-    <form method="dialog" id="standardForm">
-      <h2 id="dialogTitle">Edit nameplate standard</h2>
-      <label for="standardName">Standard name</label>
-      <input id="standardName" required maxlength="80">
-      <label for="productTypes">Allowed product types, one per line</label>
-      <textarea id="productTypes" required placeholder="IL5-72HBD-545M&#10;IL5-72HBD-550M&#10;IL5-72HBD-555M"></textarea>
-      <label for="originLine1">Product origin line 1</label>
-      <input id="originLine1" required placeholder="Product of Turkey">
-      <label for="originLine2">Product origin line 2</label>
-      <input id="originLine2" required placeholder="Assembled by Illuminate USA LLC">
-      <p class="help">The actual nameplate origin is two lines inside the right-side red box, so the app compares each line separately.</p>
-      <div class="row" style="justify-content:flex-end; margin-top:16px">
-        <button class="secondary" value="cancel">Cancel</button>
-        <button class="primary" id="saveStandard" value="default">Save standard</button>
-      </div>
-    </form>
-  </dialog>
-
   <script>
-    const VISION_API_URL = "https://nameplate-ocr-api-906417989527.us-east1.run.app";
-    const COLUMNS = [
-      ["540", "STC"], ["540", "BNPI"], ["545", "STC"], ["545", "BNPI"], ["550", "STC"], ["550", "BNPI"],
-      ["555", "STC"], ["555", "BNPI"], ["560", "STC"], ["560", "BNPI"]
-    ];
-    const ROWS = ["Pmax", "Voc", "Isc", "Vmp", "Imp", "aBSI"];
-    const OCR_ZONES = {
-      productType: {
-        x: 0.09, y: 0.05, w: 0.18, h: 0.45, scale: 4,
-        contrast: 1.08, threshold: null, smooth: true, preprocess: "gray",
-        kind: "productType",
-        label: "product type red-box region",
-        psm: "13",
-        whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-"
-      },
-      origin: {
-        x: 0.78, y: 0.10, w: 0.19, h: 0.55, scale: 4,
-        contrast: 1.18, threshold: 168, smooth: true, preprocess: "threshold",
-        kind: "origin",
-        label: "two-line product origin red-box region",
-        psm: "6",
-        whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,/-"
-      }
-    };
-    const DEFAULT_STANDARD = {
-      id: "nameplate-default",
-      name: "Illuminate Nameplate 540-560",
-      productTypes: ["IL5-72HBD-545M", "IL5-72HBD-550M", "IL5-72HBD-555M"],
-      originLine1: "Product of Turkey",
-      originLine2: "Assembled by Illuminate USA LLC",
-      specs: {
-        Pmax: ["540", "591", "545", "597", "550", "602", "555", "607", "560", "613"],
-        Voc: ["49.50", "49.50", "49.65", "49.65", "49.80", "49.80", "49.95", "49.95", "50.10", "50.10"],
-        Isc: ["13.85", "15.16", "13.92", "15.24", "13.99", "15.31", "14.05", "15.38", "14.10", "15.43"],
-        Vmp: ["41.65", "41.65", "41.80", "41.80", "41.95", "41.95", "42.10", "42.10", "42.25", "42.25"],
-        Imp: ["12.97", "14.20", "13.04", "14.27", "13.12", "14.36", "13.19", "14.44", "13.26", "14.51"],
-        aBSI: ["/", "16.76", "/", "16.84", "/", "16.93", "/", "17.00", "/", "17.06"]
-      }
-    };
+    const API_URL = "https://nameplate-ocr-api-906417989527.us-east1.run.app";
+    const LINES = ["L1","L2","L3","L4","L5","L6","L7","L8"];
+    const MAX_LONG_EDGE = 4096;
+    const TARGET_BYTES = 8 * 1024 * 1024 - 64 * 1024;
     const $ = id => document.getElementById(id);
-    function productTypesFrom(value) {
-      const raw = Array.isArray(value) ? value : String(value || "").split(/\r?\n|,/);
-      const cleaned = raw.map(x => String(x).trim()).filter(Boolean);
-      return [...new Set(cleaned)];
-    }
-    function normalizeStandard(s) {
-      const origin = s.origin || "";
-      const migratedProductTypes = productTypesFrom(s.productTypes?.length ? s.productTypes : s.productType);
-      return {
-        ...DEFAULT_STANDARD,
-        ...s,
-        productTypes: migratedProductTypes.length ? migratedProductTypes : DEFAULT_STANDARD.productTypes,
-        originLine1: s.originLine1 || origin.match(/^(.+?)(?=\s+Assembled\s+by\s+)/i)?.[1] || "Product of Turkey",
-        originLine2: s.originLine2 || origin.match(/(Assembled\s+by\s+.+)$/i)?.[1] || "Assembled by Illuminate USA LLC",
-        specs: s.specs || DEFAULT_STANDARD.specs
-      };
-    }
-    let standards = (JSON.parse(localStorage.getItem("nameplate-standards") || "null") || [DEFAULT_STANDARD]).map(normalizeStandard);
-    let history = JSON.parse(localStorage.getItem("nameplate-history") || "[]");
-    let selectedFile = null;
+    let config = null;
     let selectedOriginalFile = null;
-    let confirmedNameplateBlob = null;
-    let confirmedNameplatePreviewUrl = null;
-    let cropRect = null;
-    let autoCropRect = null;
-    let cropConfirmed = false;
-    let editingId = null;
+    let preparedVisionBlob = null;
+    let previewUrl = null;
+    let history = JSON.parse(localStorage.getItem("nameplate-operator-history") || "[]");
 
-    function saveStandards() { localStorage.setItem("nameplate-standards", JSON.stringify(standards)); }
-    function saveHistory() { localStorage.setItem("nameplate-history", JSON.stringify(history.slice(0, 100))); }
-    function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function normalize(s) { return String(s ?? "").toLowerCase().replace(/[^\p{L}\p{N}.\/]+/gu, " ").replace(/\s+/g, " ").trim(); }
-    function distance(a, b) {
-      const m = Array.from({length: b.length + 1}, (_, i) => i);
-      for (let i = 1; i <= a.length; i++) {
-        let prev = m[0]; m[0] = i;
-        for (let j = 1; j <= b.length; j++) {
-          const old = m[j];
-          m[j] = Math.min(m[j] + 1, m[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
-          prev = old;
-        }
+    function escapeHtml(value){return String(value ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function normalize(value){return String(value ?? "").toLowerCase().replace(/[^\p{L}\p{N}.\/%+\-°]+/gu," ").replace(/\s+/g," ").trim();}
+    function distance(a,b){const row=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let p=row[0];row[0]=i;for(let j=1;j<=b.length;j++){const old=row[j];row[j]=Math.min(row[j]+1,row[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=old;}}return row[b.length];}
+    function similarity(a,b){a=normalize(a);b=normalize(b);return !a||!b?0:1-distance(a,b)/Math.max(a.length,b.length);}
+    function candidates(text){const lines=String(text||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const out=[...lines];for(let n=2;n<=3;n++){for(let i=0;i<=lines.length-n;i++)out.push(lines.slice(i,i+n).join(" "));}return [...new Set(out)];}
+    function matchText(expected,text){const list=candidates(text);const exp=normalize(expected);const contained=list.find(x=>normalize(x).includes(exp));if(exp&&contained)return{actual:contained,score:1};let best={actual:"",score:0};for(const item of list){const score=similarity(expected,item);if(score>best.score)best={actual:item,score};}return best;}
+    function matchAny(values,text){let best={actual:"",score:0,matchedExpected:values?.[0]||""};for(const expected of values||[]){const result=matchText(expected,text);if(result.score>best.score)best={...result,matchedExpected:expected};}return best;}
+    function matchSpec(label,value,text){const list=candidates(text);const labelNorm=normalize(label);const expected=String(value||"");const near=list.find(line=>normalize(line).includes(labelNorm)&&normalize(line).includes(normalize(expected)));if(near)return{actual:near,score:1};return matchText(expected,text);}
+    function compare(standard,text,threshold){const checks=[];checks.push({group:"Product",attribute:"Product type",expected:(standard.productTypes||[]).join(" | "),...matchAny(standard.productTypes,text)});
+      for(const line of standard.originLines||[])checks.push({group:"Origin",attribute:"Origin wording",expected:line,...matchText(line,text)});
+      for(const spec of standard.generalSpecs||[])checks.push({group:"General spec",attribute:spec.label,expected:spec.value,...matchSpec(spec.label,spec.value,text)});
+      for(const spec of standard.performanceSpecs||[]){
+        if(spec.stc)checks.push({group:"Performance",attribute:`${spec.label} STC`,expected:`${spec.stc}${spec.unit||""}`,...matchSpec(spec.label,spec.stc,text)});
+        if(standard.performanceMode==="STC_BNPI"&&spec.bnpi)checks.push({group:"Performance",attribute:`${spec.label} BNPI`,expected:`${spec.bnpi}${spec.unit||""}`,...matchSpec(spec.label,spec.bnpi,text)});
       }
-      return m[b.length];
+      return checks.map(item=>({...item,pass:item.score>=threshold,actual:item.actual||"No similar OCR text found"}));
     }
-    function similarity(a, b) {
-      a = normalize(a); b = normalize(b);
-      if (!a || !b) return 0;
-      return 1 - distance(a, b) / Math.max(a.length, b.length);
+    function activeStandard(){const line=$("lineSelect").value;const id=config?.lineBindings?.[line];return (config?.standards||[]).find(s=>s.id===id);}
+    function renderLineOptions(){ $("lineSelect").innerHTML=LINES.map(line=>`<option value="${line}">${line}</option>`).join(""); }
+    function renderStandard(){const line=$("lineSelect").value;const standard=activeStandard();if(!standard){$("lineStatus").textContent=`${line} has no standard bound. Ask admin to bind one.`;$("standardPreview").innerHTML='<div class="empty">No standard bound to this line.</div>';$("runButton").disabled=true;return;}
+      $("lineStatus").textContent=`${line} uses ${standard.name}. Threshold: ${config.thresholdPercent}%`;
+      $("standardPreview").innerHTML=`<p><strong>${escapeHtml(standard.name)}</strong> ${standard.brandLabel?`<span class="muted">(${escapeHtml(standard.brandLabel)})</span>`:""}</p>
+      <p><strong>Product types:</strong><br>${(standard.productTypes||[]).map(escapeHtml).join("<br>")||"<span class='muted'>None</span>"}</p>
+      <p><strong>Origin lines:</strong><br>${(standard.originLines||[]).map(escapeHtml).join("<br>")||"<span class='muted'>None</span>"}</p>
+      <p><strong>General specs:</strong> ${(standard.generalSpecs||[]).length} | <strong>Performance:</strong> ${escapeHtml(standard.performanceMode||"STC_ONLY")}, ${(standard.performanceSpecs||[]).length} rows</p>`;
+      $("runButton").disabled=!preparedVisionBlob;
     }
-    function matchExpectedText(expected, sourceText) {
-      const ocrLines = sourceText.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-      const fullText = normalize(sourceText);
-      const normalizedExpected = normalize(expected);
-      if (normalizedExpected && fullText.includes(normalizedExpected)) {
-        const line = ocrLines.find(x => normalize(x).includes(normalizedExpected));
-        return { actual: line || ocrLines.join(" / ") || sourceText, score: 1 };
-      }
-      let best = { actual: "", score: 0 };
-      for (const line of ocrLines) {
-        const score = similarity(expected, line);
-        if (score > best.score) best = { actual: line, score };
-      }
-      return best;
-    }
-    function matchAnyExpectedText(expectedList, sourceText) {
-      const expectedValues = productTypesFrom(expectedList);
-      let best = { actual: "", score: 0, matchedExpected: expectedValues[0] || "" };
-      for (const expected of expectedValues) {
-        const candidate = matchExpectedText(expected, sourceText);
-        if (candidate.score > best.score) best = { ...candidate, matchedExpected: expected };
-      }
-      return best;
-    }
-    function buildChecks(standard) {
-      const checks = [
-        { group: "Product", attribute: "Product type", expected: standard.productTypes, mode: "productTypes" },
-        { group: "Origin", attribute: "Product origin line 1", expected: standard.originLine1, mode: "text" },
-        { group: "Origin", attribute: "Product origin line 2", expected: standard.originLine2, mode: "text" }
-      ];
-      return checks;
-    }
-    function compareStandard(standard, extracted, threshold) {
-      return buildChecks(standard).map(check => {
-        const sourceText = check.group === "Product" ? extracted.productType : check.group === "Origin" ? extracted.origin : extracted.full;
-        const expected = String(check.expected ?? "").trim();
-        const expectedLabel = Array.isArray(check.expected) ? check.expected.join(" | ") : expected;
-        if (Array.isArray(check.expected) && !check.expected.length) return { ...check, expected: "", actual: "No standard value entered", score: 0, pass: false };
-        if (!Array.isArray(check.expected) && !expected) return { ...check, actual: "No standard value entered", score: 0, pass: false };
-        if (!sourceText.trim()) return { ...check, actual: "No text read from this OCR crop", score: 0, pass: false };
-        const best = check.mode === "productTypes" ? matchAnyExpectedText(check.expected, sourceText) : matchExpectedText(expected, sourceText);
-        return { ...check, expected: best.matchedExpected || expectedLabel, actual: best.actual, score: best.score, pass: best.score >= threshold };
-      });
-    }
-    function renderStandards(selectedId) {
-      $("standardSelect").innerHTML = standards.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
-      if (selectedId) $("standardSelect").value = selectedId;
-      renderPreview();
-    }
-    function currentStandard() { return standards.find(s => s.id === $("standardSelect").value) || standards[0]; }
-    function renderPreview() {
-      const s = currentStandard();
-      if (!s) return;
-      $("standardPreview").innerHTML = `<p><strong>Allowed product types:</strong><br>${escapeHtml(s.productTypes.join("\n")).replace(/\n/g, "<br>")}</p>
-        <p><strong>Origin line 1:</strong> ${escapeHtml(s.originLine1)}</p>
-        <p><strong>Origin line 2:</strong> ${escapeHtml(s.originLine2)}</p>
-        <p class="help">Layout-aware OCR: product type and product origin are read from the two red-box regions shown in your sample nameplate. Electrical specs are ignored for now.</p>`;
-    }
-    function specTable(s, editable) {
-      const header = `<tr><th>Test Type</th>${COLUMNS.map(([rating, test]) => `<th><span class="muted">${rating}</span><br>${test}</th>`).join("")}</tr>`;
-      const body = ROWS.map(row => `<tr><td>${row}</td>${s.specs[row].map((value, i) =>
-        `<td>${editable ? `<input data-row="${row}" data-col="${i}" value="${escapeHtml(value)}">` : escapeHtml(value)}</td>`).join("")}</tr>`).join("");
-      return `<div class="spec-wrap"><table class="spec">${header}${body}</table></div>`;
-    }
-    function renderHistory() {
-      if (!history.length) { $("history").innerHTML = '<div class="empty" style="margin-top:14px">No saved runs yet.</div>'; return; }
-      $("history").innerHTML = `<table><thead><tr><th>Date</th><th>File</th><th>Standard</th><th>Score</th><th>Result</th></tr></thead><tbody>${history.map(x =>
-        `<tr><td>${new Date(x.date).toLocaleString()}</td><td>${escapeHtml(x.file)}</td><td>${escapeHtml(x.standard)}</td><td>${x.score}%</td><td><span class="badge ${x.passed ? "pass" : "fail"}">${x.passed ? "PASS" : "FAIL"}</span></td></tr>`
-      ).join("")}</tbody></table>`;
-    }
-    function renderResults(items, rawText) {
-      const passed = items.filter(x => x.pass).length;
-      const avg = items.length ? Math.round(items.reduce((n, x) => n + x.score, 0) / items.length * 100) : 0;
-      const rows = items.map(x => `<tr><td>${escapeHtml(x.group)}</td><td>${escapeHtml(x.attribute)}</td><td>${escapeHtml(x.expected)}</td>
-        <td><span class="badge ${x.pass ? "pass" : "fail"}">${x.pass ? "PASS" : "FAIL"}</span></td><td>${Math.round(x.score * 100)}%</td>
-        <td>${escapeHtml(x.actual || "No text read from this OCR crop")}</td></tr>`).join("");
-      $("results").innerHTML = `<div class="summary">
-        <div class="metric"><span class="muted">Overall score</span><strong>${avg}%</strong></div>
-        <div class="metric"><span class="muted">Passed checks</span><strong>${passed}/${items.length}</strong></div>
-        <div class="metric"><span class="muted">Decision</span><strong style="color:${passed === items.length ? "var(--ok)" : "var(--bad)"}">${passed === items.length ? "PASS" : "FAIL"}</strong></div>
-      </div><table class="result-table"><thead><tr><th>Group</th><th>Attribute</th><th>Expected</th><th>Result</th><th>Score</th><th>Best OCR match</th></tr></thead><tbody>${rows}</tbody></table>
-      <details><summary>View raw OCR text</summary><pre>${escapeHtml(rawText)}</pre></details>`;
-      return { passed: passed === items.length, avg };
-    }
-    async function setFile(file) {
-      if (!file || !file.type.startsWith("image/")) { $("status").textContent = "Please choose a valid image."; return; }
-      clearObjectUrl(confirmedNameplatePreviewUrl);
-      selectedFile = null;
-      selectedOriginalFile = file;
-      confirmedNameplateBlob = null;
-      confirmedNameplatePreviewUrl = null;
-      cropConfirmed = false;
-      $("preview").src = URL.createObjectURL(file);
-      $("preview").hidden = false; $("dropText").hidden = true;
-      $("runButton").disabled = true; $("clearImage").disabled = false; $("status").textContent = "Detecting nameplate area...";
-      try {
-        const img = await loadImage(file);
-        autoCropRect = detectNameplateRect(img);
-        showCropConfirm(file, autoCropRect);
-        $("status").textContent = `Confirm the nameplate crop before OCR. Auto confidence: ${Math.round(autoCropRect.confidence * 100)}%.`;
-      } catch (e) {
-        $("status").textContent = `Could not prepare crop: ${e.message}`;
-      }
-    }
-    function clearFile() {
-      clearObjectUrl(confirmedNameplatePreviewUrl);
-      selectedFile = null; selectedOriginalFile = null; confirmedNameplateBlob = null; confirmedNameplatePreviewUrl = null;
-      cropRect = null; autoCropRect = null; cropConfirmed = false; $("fileInput").value = ""; $("preview").hidden = true; $("dropText").hidden = false;
-      $("cropPanel").style.display = "none";
-      $("runButton").disabled = true; $("clearImage").disabled = true; $("status").textContent = "";
-    }
-    function clearObjectUrl(url) { if (url) URL.revokeObjectURL(url); }
-    function loadImage(file) {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
-      });
-    }
-    function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
-    function detectNameplateRect(img) {
-      const width = 700;
-      const height = Math.max(1, Math.round(img.naturalHeight * width / img.naturalWidth));
-      const canvas = document.createElement("canvas");
-      canvas.width = width; canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, 0, 0, width, height);
-      const data = ctx.getImageData(0, 0, width, height).data;
-      const rowScores = Array(height).fill(0);
-      for (let y = Math.floor(height * 0.2); y < Math.floor(height * 0.86); y++) {
-        let dark = 0;
-        for (let x = Math.floor(width * 0.03); x < Math.floor(width * 0.98); x += 2) {
-          const i = (y * width + x) * 4;
-          const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-          if (gray < 125) dark++;
-        }
-        rowScores[y] = dark;
-      }
-      const smoothed = rowScores.map((_, y) => {
-        let total = 0, count = 0;
-        for (let yy = Math.max(0, y - 4); yy <= Math.min(height - 1, y + 4); yy++) total += rowScores[yy], count++;
-        return total / count;
-      });
-      const maxScore = Math.max(...smoothed);
-      const threshold = maxScore * 0.28;
-      let best = null, start = null;
-      for (let y = 0; y <= height; y++) {
-        const active = y < height && smoothed[y] >= threshold;
-        if (active && start == null) start = y;
-        if ((!active || y === height) && start != null) {
-          const end = y - 1;
-          const h = end - start + 1;
-          const center = (start + end) / 2 / height;
-          if (h > height * 0.012 && h < height * 0.16 && center < 0.86) {
-            const score = h * Math.max(...smoothed.slice(start, end + 1));
-            if (!best || score > best.score) best = { start, end, score };
-          }
-          start = null;
-        }
-      }
-      if (!best) return fallbackNameplateRect(img);
-      const y1 = best.start, y2 = best.end;
-      const colScores = Array(width).fill(0);
-      for (let x = 0; x < width; x++) {
-        let dark = 0;
-        for (let y = y1; y <= y2; y++) {
-          const i = (y * width + x) * 4;
-          const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-          if (gray < 145) dark++;
-        }
-        colScores[x] = dark;
-      }
-      const colThreshold = Math.max(2, (y2 - y1 + 1) * 0.08);
-      let left = colScores.findIndex(v => v >= colThreshold);
-      let right = width - 1 - [...colScores].reverse().findIndex(v => v >= colThreshold);
-      if (left < 0 || right <= left) return fallbackNameplateRect(img);
-      const padX = width * 0.02, padY = height * 0.015;
-      left = clamp(left - padX, 0, width - 1);
-      right = clamp(right + padX, left + 1, width);
-      const top = clamp(y1 - padY, 0, height - 1);
-      const bottom = clamp(y2 + padY, top + 1, height);
-      const scaleX = img.naturalWidth / width, scaleY = img.naturalHeight / height;
-      const rect = {
-        x: Math.round(left * scaleX),
-        y: Math.round(top * scaleY),
-        w: Math.round((right - left) * scaleX),
-        h: Math.round((bottom - top) * scaleY),
-        confidence: clamp(maxScore / (width * 0.25), 0.35, 0.95)
-      };
-      if (rect.w < img.naturalWidth * 0.35 || rect.h < img.naturalHeight * 0.015) return fallbackNameplateRect(img);
-      return rect;
-    }
-    function fallbackNameplateRect(img) {
-      return {
-        x: Math.round(img.naturalWidth * 0.06),
-        y: Math.round(img.naturalHeight * 0.46),
-        w: Math.round(img.naturalWidth * 0.88),
-        h: Math.round(img.naturalHeight * 0.12),
-        confidence: 0.2
-      };
-    }
-    function showCropConfirm(file, rect) {
-      cropRect = { ...rect };
-      $("cropImage").src = URL.createObjectURL(file);
-      $("cropPanel").style.display = "block";
-      $("runButton").disabled = true;
-      $("useCrop").disabled = false;
-      $("resetCrop").disabled = false;
-      $("cropImage").onload = renderCropOverlay;
-      renderCropOverlay();
-    }
-    function renderCropOverlay() {
-      if (!cropRect || !$("cropImage").naturalWidth) return;
-      const img = $("cropImage");
-      const sx = img.clientWidth / img.naturalWidth;
-      const sy = img.clientHeight / img.naturalHeight;
-      const box = $("cropBox");
-      box.style.left = `${cropRect.x * sx}px`;
-      box.style.top = `${cropRect.y * sy}px`;
-      box.style.width = `${cropRect.w * sx}px`;
-      box.style.height = `${cropRect.h * sy}px`;
-      $("cropX").value = (cropRect.x / img.naturalWidth * 100).toFixed(1);
-      $("cropY").value = (cropRect.y / img.naturalHeight * 100).toFixed(1);
-      $("cropW").value = (cropRect.w / img.naturalWidth * 100).toFixed(1);
-      $("cropH").value = (cropRect.h / img.naturalHeight * 100).toFixed(1);
-    }
-    function updateCropFromInputs() {
-      const img = $("cropImage");
-      if (!img.naturalWidth) return;
-      const x = Number($("cropX").value) / 100 * img.naturalWidth;
-      const y = Number($("cropY").value) / 100 * img.naturalHeight;
-      const w = Number($("cropW").value) / 100 * img.naturalWidth;
-      const h = Number($("cropH").value) / 100 * img.naturalHeight;
-      cropRect = normalizeCropRect({ x, y, w, h }, img);
-      renderCropOverlay();
-    }
-    function normalizeCropRect(rect, img) {
-      const minW = img.naturalWidth * 0.05;
-      const minH = img.naturalHeight * 0.015;
-      const w = clamp(rect.w, minW, img.naturalWidth);
-      const h = clamp(rect.h, minH, img.naturalHeight);
-      const x = clamp(rect.x, 0, img.naturalWidth - w);
-      const y = clamp(rect.y, 0, img.naturalHeight - h);
-      return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h), confidence: rect.confidence || 1 };
-    }
-    function beginCropDrag(e, mode) {
-      if (!cropRect || !selectedOriginalFile) return;
-      e.preventDefault();
-      const img = $("cropImage");
-      const sx = img.naturalWidth / img.clientWidth;
-      const sy = img.naturalHeight / img.clientHeight;
-      const startX = e.clientX, startY = e.clientY;
-      const start = { ...cropRect };
-      function move(ev) {
-        const dx = (ev.clientX - startX) * sx;
-        const dy = (ev.clientY - startY) * sy;
-        if (mode === "resize") {
-          cropRect = normalizeCropRect({ ...start, w: start.w + dx, h: start.h + dy }, img);
-        } else {
-          cropRect = normalizeCropRect({ ...start, x: start.x + dx, y: start.y + dy }, img);
-        }
-        cropConfirmed = false;
-        $("runButton").disabled = true;
-        renderCropOverlay();
-      }
-      function up() {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
-      }
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
-    }
-    async function createCroppedBlob(file, rect) {
-      const img = await loadImage(file);
-      const normalized = normalizeCropRect(rect, img);
-      const canvas = document.createElement("canvas");
-      canvas.width = normalized.w; canvas.height = normalized.h;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(img, normalized.x, normalized.y, normalized.w, normalized.h, 0, 0, normalized.w, normalized.h);
-      return new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-    }
-    async function cropFile(file, zone) {
-      const img = await loadImage(file);
-      const canvas = document.createElement("canvas");
-      const sx = Math.round(img.naturalWidth * zone.x);
-      const sy = Math.round(img.naturalHeight * zone.y);
-      const sw = Math.round(img.naturalWidth * zone.w);
-      const sh = Math.round(img.naturalHeight * zone.h);
-      const scale = zone.scale || 3;
-      canvas.width = Math.max(1, sw * scale);
-      canvas.height = Math.max(1, sh * scale);
-      const ctx = canvas.getContext("2d");
-      ctx.imageSmoothingEnabled = zone.smooth !== false;
-      ctx.imageSmoothingQuality = "high";
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-      preprocessCanvas(canvas, zone);
-      return new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-    }
-    function preprocessCanvas(canvas, zone) {
-      const ctx = canvas.getContext("2d");
-      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = img.data;
-      const contrast = zone.contrast || 1.25;
-      const threshold = zone.threshold || 160;
-      for (let i = 0; i < data.length; i += 4) {
-        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-        const boosted = Math.max(0, Math.min(255, (gray - 128) * contrast + 128));
-        const value = zone.preprocess === "gray" ? boosted : boosted < threshold ? 0 : 255;
-        data[i] = data[i + 1] = data[i + 2] = value;
-      }
-      ctx.putImageData(img, 0, 0);
-    }
-    function blobToBase64(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
-        reader.onerror = () => reject(reader.error || new Error("Could not read image."));
-        reader.readAsDataURL(blob);
-      });
-    }
-    function visionWordsInZone(words, zone) {
-      const selected = (words || []).filter(word => {
-        const cx = word.x + word.w / 2;
-        const cy = word.y + word.h / 2;
-        return cx >= zone.x && cx <= zone.x + zone.w && cy >= zone.y && cy <= zone.y + zone.h;
-      });
-      if (!selected.length) return "";
+    async function loadConfig(){const res=await fetch(`${API_URL}/config`);if(!res.ok)throw new Error(`Config request failed: ${res.status}`);config=await res.json();renderLineOptions();renderStandard();}
+    function saveHistory(){localStorage.setItem("nameplate-operator-history",JSON.stringify(history.slice(0,100)));}
+    function renderHistory(){if(!history.length){$("history").innerHTML='<div class="empty" style="margin-top:14px">No saved operator runs yet.</div>';return;}$("history").innerHTML=`<table style="margin-top:14px"><thead><tr><th>Date</th><th>Line</th><th>File</th><th>Standard</th><th>Score</th><th>Result</th></tr></thead><tbody>${history.map(x=>`<tr><td>${new Date(x.date).toLocaleString()}</td><td>${escapeHtml(x.line)}</td><td>${escapeHtml(x.file)}</td><td>${escapeHtml(x.standard)}</td><td>${x.score}%</td><td><span class="badge ${x.passed?"pass":"fail"}">${x.passed?"PASS":"FAIL"}</span></td></tr>`).join("")}</tbody></table>`;}
+    function renderResults(items,rawText){const passed=items.filter(x=>x.pass).length;const avg=items.length?Math.round(items.reduce((n,x)=>n+x.score,0)/items.length*100):0;const rows=items.map(x=>`<tr><td>${escapeHtml(x.group)}</td><td>${escapeHtml(x.attribute)}</td><td>${escapeHtml(x.expected)}</td><td><span class="badge ${x.pass?"pass":"fail"}">${x.pass?"PASS":"FAIL"}</span></td><td>${Math.round(x.score*100)}%</td><td>${escapeHtml(x.actual)}</td></tr>`).join("");$("results").innerHTML=`<div class="summary"><div class="metric"><span class="muted">Overall score</span><strong>${avg}%</strong></div><div class="metric"><span class="muted">Checks passed</span><strong>${passed}/${items.length}</strong></div><div class="metric"><span class="muted">Decision</span><strong style="color:${passed===items.length?"var(--ok)":"var(--bad)"}">${passed===items.length?"PASS":"FAIL"}</strong></div></div><table class="result-table"><thead><tr><th>Group</th><th>Attribute</th><th>Expected</th><th>Result</th><th>Score</th><th>Best OCR match</th></tr></thead><tbody>${rows}</tbody></table><details><summary>View complete Google Vision OCR text</summary><pre>${escapeHtml(rawText)}</pre></details>`;return{passed:passed===items.length,avg};}
+    function loadImage(file){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};img.onerror=e=>{URL.revokeObjectURL(url);reject(e)};img.src=url;});}
+    function canvasToBlob(canvas,quality){return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error("Could not prepare photo.")),"image/jpeg",quality));}
+    async function prepareFullPhoto(file){const img=await loadImage(file);const largest=Math.max(img.naturalWidth,img.naturalHeight);if(largest<=MAX_LONG_EDGE&&file.size<TARGET_BYTES&&/^image\/(jpeg|png|webp)$/i.test(file.type))return{blob:file,resized:false,width:img.naturalWidth,height:img.naturalHeight};const scale=Math.min(1,MAX_LONG_EDGE/largest);const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));const ctx=canvas.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);let quality=.92;let blob=await canvasToBlob(canvas,quality);while(blob.size>=TARGET_BYTES&&quality>.55){quality-=.08;blob=await canvasToBlob(canvas,quality);}if(blob.size>=TARGET_BYTES)throw new Error("The full photo remains too large. Please use a smaller photo.");return{blob,resized:true,width:canvas.width,height:canvas.height};}
+    function blobToBase64(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(reader.error||new Error("Could not read photo."));reader.readAsDataURL(blob);});}
+    async function recognize(blob){$("status").textContent="Uploading the complete photo to Google Vision...";$("progress").firstElementChild.style.width="35%";const res=await fetch(`${API_URL}/ocr`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:await blobToBase64(blob)})});const payload=await res.json().catch(()=>({}));if(!res.ok)throw new Error(payload.error||`Google Vision returned HTTP ${res.status}.`);$("progress").firstElementChild.style.width="90%";if(!String(payload.text||"").trim())throw new Error("Google Vision did not detect any text.");return payload;}
+    async function setFile(file){if(!file||!file.type.startsWith("image/"))return $("status").textContent="Please choose a valid image.";selectedOriginalFile=file;preparedVisionBlob=null;if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=URL.createObjectURL(file);$("preview").src=previewUrl;$("preview").hidden=false;$("dropText").hidden=true;$("runButton").disabled=true;$("clearImage").disabled=false;$("status").textContent="Preparing full photo...";try{const prepared=await prepareFullPhoto(file);preparedVisionBlob=prepared.blob;$("status").textContent=`Ready for Google Vision (${(prepared.blob.size/1024/1024).toFixed(2)} MB${prepared.resized?", resized":""}).`;renderStandard();}catch(e){$("status").textContent=e.message;}}
+    function clearFile(){if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=null;selectedOriginalFile=null;preparedVisionBlob=null;$("fileInput").value="";$("cameraInput").value="";$("preview").hidden=true;$("dropText").hidden=false;$("runButton").disabled=true;$("clearImage").disabled=true;$("status").textContent="";$("results").innerHTML='<div class="empty">Select a configured line, upload a full photo, and run OCR.</div>';}
 
-      const heights = selected.map(word => word.h).sort((a, b) => a - b);
-      const medianHeight = heights[Math.floor(heights.length / 2)] || 0.03;
-      const tolerance = Math.max(0.018, medianHeight * 0.8);
-      const lines = [];
-      for (const word of selected.sort((a, b) => (a.y + a.h / 2) - (b.y + b.h / 2) || a.x - b.x)) {
-        const cy = word.y + word.h / 2;
-        let line = lines.find(item => Math.abs(item.cy - cy) <= tolerance);
-        if (!line) {
-          line = { cy, words: [] };
-          lines.push(line);
-        }
-        line.words.push(word);
-        line.cy = line.words.reduce((sum, item) => sum + item.y + item.h / 2, 0) / line.words.length;
-      }
-      return lines
-        .sort((a, b) => a.cy - b.cy)
-        .map(line => line.words.sort((a, b) => a.x - b.x).map(word => word.text).join(" "))
-        .join("\n");
-    }
-    async function recognizeWithGoogleVision(image) {
-      if (!VISION_API_URL.startsWith("https://")) throw new Error("Google Vision API URL is not configured.");
-      $("status").textContent = "Uploading confirmed nameplate crop to Google Vision OCR...";
-      $("progress").firstElementChild.style.width = "40%";
-      const response = await fetch(`${VISION_API_URL}/ocr`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: await blobToBase64(image) })
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || `Google Vision returned HTTP ${response.status}.`);
-      $("progress").firstElementChild.style.width = "85%";
-      return payload;
-    }
-    async function recognizeImage(image, zone) {
-      const worker = await Tesseract.createWorker("eng", 1, {
-        logger: m => {
-        if (m.progress != null) $("progress").firstElementChild.style.width = `${Math.round(m.progress * 100)}%`;
-        $("status").textContent = `${zone.label}: ${m.status}${m.progress != null ? ` ${Math.round(m.progress * 100)}%` : ""}`;
-      }});
-      try {
-        const params = {
-          tessedit_pageseg_mode: zone.psm,
-          preserve_interword_spaces: "1"
-        };
-        if (zone.whitelist) params.tessedit_char_whitelist = zone.whitelist;
-        await worker.setParameters(params);
-        const result = await worker.recognize(image);
-        return cleanOcrText(result.data.text || "", zone);
-      } finally {
-        await worker.terminate();
-      }
-    }
-    async function recognizeBestZone(file, zone, expected, variants) {
-      let best = { text: "", score: -1, label: zone.label };
-      for (const variant of variants) {
-        const trialZone = { ...zone, ...variant, label: `${zone.label} / ${variant.name}` };
-        const crop = await cropFile(file, trialZone);
-        const text = await recognizeImage(crop, trialZone);
-        const score = zone.kind === "productType" ? matchAnyExpectedText(productTypesFrom(expected), text).score : similarity(expected, text);
-        if (score > best.score) best = { text, score, label: trialZone.label };
-      }
-      return best;
-    }
-    function cleanOcrText(text, zone) {
-      let cleaned = text.replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-      if (zone.kind === "productType") {
-        cleaned = cleaned.replace(/[|_~]/g, "-").replace(/\s+/g, "").toUpperCase();
-        cleaned = cleaned.replace(/^ILS-/, "IL5-").replace(/^ILZ-/, "IL5-");
-        const model = cleaned.match(/[A-Z0-9]{2,}-[A-Z0-9]{2,}-[A-Z0-9]{2,}/);
-        return model ? model[0] : cleaned;
-      }
-      return cleaned
-        .replace(/\bllluminate\b/gi, "Illuminate")
-        .replace(/\bIllurninate\b/gi, "Illuminate")
-        .replace(/\blluminate\b/gi, "Illuminate")
-        .replace(/\bAssembied\b/gi, "Assembled")
-        .replace(/\bAssembledby\b/gi, "Assembled by")
-        .replace(/\bUSALLC\b/g, "USA LLC")
-        .replace(/\bUSA,?\s*LLC\b/g, "USA LLC")
-        .replace(/\s+\n/g, "\n")
-        .replace(/\n\s+/g, "\n")
-        .trim();
-    }
-    function openStandard(item) {
-      editingId = item?.id || null;
-      const s = JSON.parse(JSON.stringify(item || DEFAULT_STANDARD));
-      if (!item) s.id = crypto.randomUUID(), s.name = "New Nameplate Standard";
-      $("dialogTitle").textContent = item ? "Edit nameplate standard" : "Create nameplate standard";
-      const normalized = normalizeStandard(s);
-      $("standardName").value = normalized.name;
-      $("productTypes").value = normalized.productTypes.join("\n");
-      $("originLine1").value = normalized.originLine1;
-      $("originLine2").value = normalized.originLine2;
-      $("standardDialog").showModal();
-    }
-
-    $("threshold").oninput = e => $("thresholdValue").textContent = `${e.target.value}%`;
-    $("standardSelect").onchange = renderPreview;
-    $("fileInput").onchange = e => setFile(e.target.files[0]);
-    $("cameraInput").onchange = e => setFile(e.target.files[0]);
-    $("chooseImage").onclick = () => $("fileInput").click();
-    $("takePhoto").onclick = () => $("cameraInput").click();
-    $("clearImage").onclick = clearFile;
-    ["cropX", "cropY", "cropW", "cropH"].forEach(id => $(id).oninput = () => {
-      updateCropFromInputs();
-      cropConfirmed = false;
-      $("runButton").disabled = true;
-      $("status").textContent = "Crop changed. Click Use this crop before OCR.";
-    });
-    $("cropBox").addEventListener("pointerdown", e => beginCropDrag(e, "move"));
-    $("cropHandle").addEventListener("pointerdown", e => { e.stopPropagation(); beginCropDrag(e, "resize"); });
-    $("resetCrop").onclick = () => {
-      if (!autoCropRect) return;
-      cropRect = { ...autoCropRect };
-      cropConfirmed = false;
-      $("runButton").disabled = true;
-      renderCropOverlay();
-      $("status").textContent = "Auto crop restored. Click Use this crop before OCR.";
-    };
-    $("useCrop").onclick = async () => {
-      if (!selectedOriginalFile || !cropRect) return;
-      $("status").textContent = "Creating confirmed nameplate crop...";
-      confirmedNameplateBlob = await createCroppedBlob(selectedOriginalFile, cropRect);
-      selectedFile = confirmedNameplateBlob;
-      clearObjectUrl(confirmedNameplatePreviewUrl);
-      confirmedNameplatePreviewUrl = URL.createObjectURL(confirmedNameplateBlob);
-      $("preview").src = confirmedNameplatePreviewUrl;
-      cropConfirmed = true;
-      $("runButton").disabled = false;
-      $("status").textContent = "Nameplate crop confirmed. Ready to run OCR.";
-    };
-    ["dragenter", "dragover"].forEach(name => $("dropZone").addEventListener(name, e => { e.preventDefault(); $("dropZone").classList.add("drag"); }));
-    ["dragleave", "drop"].forEach(name => $("dropZone").addEventListener(name, e => { e.preventDefault(); $("dropZone").classList.remove("drag"); }));
-    $("dropZone").addEventListener("drop", e => setFile(e.dataTransfer.files[0]));
-    $("newStandard").onclick = () => openStandard(null);
-    $("editStandard").onclick = () => openStandard(currentStandard());
-    $("standardForm").onsubmit = e => {
-      if (e.submitter?.value === "cancel") return;
-      e.preventDefault();
-      const productTypes = productTypesFrom($("productTypes").value);
-      if (!productTypes.length) {
-        $("status").textContent = "Enter at least one allowed product type.";
-        return;
-      }
-      const item = {
-        id: editingId || crypto.randomUUID(),
-        name: $("standardName").value.trim(),
-        productTypes,
-        originLine1: $("originLine1").value.trim(),
-        originLine2: $("originLine2").value.trim(),
-        specs: currentStandard()?.specs || DEFAULT_STANDARD.specs
-      };
-      const idx = standards.findIndex(s => s.id === editingId);
-      if (idx >= 0) standards[idx] = item; else standards.push(item);
-      saveStandards(); renderStandards(item.id); $("standardDialog").close();
-    };
-    $("runButton").onclick = async () => {
-      if (!selectedFile || !cropConfirmed) {
-        $("status").textContent = "Please confirm the nameplate crop before running OCR.";
-        return;
-      }
-      const standard = currentStandard();
-      const button = $("runButton"); button.disabled = true; $("progress").style.display = "block";
-      try {
-        let productTypeText = "";
-        let originText = "";
-        let rawText = "";
-        try {
-          const visionResult = await recognizeWithGoogleVision(selectedFile);
-          productTypeText = cleanOcrText(visionWordsInZone(visionResult.words, OCR_ZONES.productType) || visionResult.text, OCR_ZONES.productType);
-          originText = cleanOcrText(visionWordsInZone(visionResult.words, OCR_ZONES.origin) || visionResult.text, OCR_ZONES.origin);
-          rawText = `GOOGLE VISION FULL OCR\n${visionResult.text}\n\nPRODUCT TYPE REGION\n${productTypeText}\n\nPRODUCT ORIGIN REGION\n${originText}`;
-        } catch (visionError) {
-          console.warn("Google Vision failed; using Tesseract fallback.", visionError);
-          $("status").textContent = `Google Vision unavailable (${visionError.message}). Running local Tesseract fallback...`;
-          const productBest = await recognizeBestZone(selectedFile, OCR_ZONES.productType, standard.productTypes.join("\n"), [
-            { name: "nameplate model tight gray", x: 0.105, y: 0.08, w: 0.155, h: 0.34, preprocess: "gray", threshold: null, contrast: 1.10, scale: 6, psm: "13" },
-            { name: "nameplate model padded gray", x: 0.085, y: 0.02, w: 0.195, h: 0.52, preprocess: "gray", threshold: null, contrast: 1.10, scale: 5, psm: "7" },
-            { name: "nameplate model threshold", x: 0.085, y: 0.02, w: 0.195, h: 0.52, preprocess: "threshold", threshold: 182, contrast: 1.12, scale: 5, psm: "7" }
-          ]);
-          const originBest = await recognizeBestZone(selectedFile, OCR_ZONES.origin, `${standard.originLine1}\n${standard.originLine2}`, [
-            { name: "nameplate origin tight threshold", x: 0.805, y: 0.10, w: 0.165, h: 0.52, preprocess: "threshold", threshold: 168, contrast: 1.18, scale: 5, psm: "6" },
-            { name: "nameplate origin tight grayscale", x: 0.805, y: 0.10, w: 0.165, h: 0.52, preprocess: "gray", threshold: null, contrast: 1.12, scale: 5, psm: "6" },
-            { name: "nameplate origin padded", x: 0.775, y: 0.02, w: 0.205, h: 0.66, preprocess: "threshold", threshold: 168, contrast: 1.16, scale: 4, psm: "6" }
-          ]);
-          productTypeText = productBest.text;
-          originText = originBest.text;
-          rawText = `TESSERACT FALLBACK\n\nPRODUCT TYPE OCR - ${productBest.label}\n${productTypeText}\n\nPRODUCT ORIGIN OCR - ${originBest.label}\n${originText}`;
-        }
-        const extracted = { productType: productTypeText, origin: originText, full: "" };
-        const items = compareStandard(standard, extracted, Number($("threshold").value) / 100);
-        const summary = renderResults(items, rawText);
-        history.unshift({ date:new Date().toISOString(), file:selectedOriginalFile?.name || selectedFile.name || "confirmed-nameplate.png", standard:standard.name, score:summary.avg, passed:summary.passed, text:rawText });
-        saveHistory(); renderHistory(); $("status").textContent = "OCR and comparison complete.";
-      } catch (e) {
-        $("status").textContent = `OCR failed: ${e.message}. Check your internet connection and try again.`;
-      } finally {
-        button.disabled = false; setTimeout(() => $("progress").style.display = "none", 700);
-      }
-    };
-    $("clearHistory").onclick = () => { if (confirm("Delete all saved OCR runs?")) { history = []; saveHistory(); renderHistory(); } };
-    $("exportCsv").onclick = () => {
-      const q = s => `"${String(s ?? "").replaceAll('"','""')}"`;
-      const csv = ["Date,File,Standard,Score,Result,OCR Text", ...history.map(x => [x.date,x.file,x.standard,x.score,x.passed?"PASS":"FAIL",x.text].map(q).join(","))].join("\n");
-      Object.assign(document.createElement("a"), { href:URL.createObjectURL(new Blob([csv], {type:"text/csv"})), download:"nameplate-ocr-history.csv" }).click();
-    };
-
-    saveStandards(); renderStandards(); renderHistory();
+    $("lineSelect").onchange=renderStandard;$("reloadConfig").onclick=()=>loadConfig().catch(e=>$("lineStatus").textContent=e.message);$("chooseImage").onclick=()=>$("fileInput").click();$("takePhoto").onclick=()=>$("cameraInput").click();$("fileInput").onchange=e=>setFile(e.target.files[0]);$("cameraInput").onchange=e=>setFile(e.target.files[0]);$("clearImage").onclick=clearFile;
+    ["dragenter","dragover"].forEach(name=>$("dropZone").addEventListener(name,e=>{e.preventDefault();$("dropZone").classList.add("drag")}));["dragleave","drop"].forEach(name=>$("dropZone").addEventListener(name,e=>{e.preventDefault();$("dropZone").classList.remove("drag")}));$("dropZone").addEventListener("drop",e=>setFile(e.dataTransfer.files[0]));
+    $("runButton").onclick=async()=>{const standard=activeStandard();if(!standard||!preparedVisionBlob)return;const button=$("runButton");button.disabled=true;$("progress").style.display="block";$("progress").firstElementChild.style.width="5%";try{const vision=await recognize(preparedVisionBlob);const items=compare(standard,vision.text,(config.thresholdPercent||85)/100);const summary=renderResults(items,vision.text);history.unshift({date:new Date().toISOString(),line:$("lineSelect").value,file:selectedOriginalFile?.name||"full-photo",standard:standard.name,score:summary.avg,passed:summary.passed,text:vision.text});saveHistory();renderHistory();$("progress").firstElementChild.style.width="100%";$("status").textContent=`Google Vision complete. ${vision.words?.length||0} words detected.`;}catch(e){$("status").textContent=`Google Vision failed: ${e.message}`;}finally{button.disabled=false;setTimeout(()=>$("progress").style.display="none",700);renderStandard();}};
+    $("clearHistory").onclick=()=>{if(confirm("Delete all saved operator runs?")){history=[];saveHistory();renderHistory();}};$("exportCsv").onclick=()=>{const q=v=>`"${String(v??"").replaceAll('"','""')}"`;const csv=["Date,Line,File,Standard,Score,Result,OCR Text",...history.map(x=>[x.date,x.line,x.file,x.standard,x.score,x.passed?"PASS":"FAIL",x.text].map(q).join(","))].join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="nameplate-operator-history.csv";a.click();};
+    renderLineOptions();renderHistory();loadConfig().catch(e=>$("lineStatus").textContent=e.message);
   </script>
 </body>
 </html>
