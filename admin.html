@@ -64,7 +64,7 @@
     function uid(){return crypto.randomUUID ? crypto.randomUUID() : `std-${Date.now()}-${Math.random().toString(16).slice(2)}`;}
     function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
     function emptyConfig(){return{version:1,thresholdPercent:85,lineBindings:Object.fromEntries(LINES.map(line=>[line,""])),standards:[]};}
-    function newStandard(){return{id:uid(),name:"New Standard",brandLabel:"",productTypes:[],originLines:[],nameplateWidthMm:0,nameplateHeightMm:0,minTopGapMm:0.5,minBottomGapMm:0.5,generalSpecs:[],performanceMode:"STC_ONLY",performanceSpecs:[]};}
+    function newStandard(){return{id:uid(),name:"New Standard",brandLabel:"",productTypes:[],originLines:[],nameplateWidthMm:0,nameplateHeightMm:0,minTopGapMm:0.5,minBottomGapMm:0.5,borderMode:"AUTO",fixedBorder:{x:5,y:45,w:90,h:10},generalSpecs:[],performanceMode:"STC_ONLY",performanceSpecs:[]};}
     function selectedStandard(){return (config?.standards||[]).find(item=>item.id===selectedId);}
     function optionsHtml(selected){return `<option value="">No standard</option>${(config.standards||[]).map(item=>`<option value="${item.id}" ${item.id===selected?"selected":""}>${escapeHtml(item.name)}</option>`).join("")}`;}
     function productTypesText(s){return (s.productTypes||[]).join("\n");}
@@ -78,16 +78,22 @@
       <label>Origin lines, one per line</label><textarea id="originLines">${escapeHtml(originLinesText(s))}</textarea>
       <h3>Printing deviation settings</h3>
       <p class="help">Used to convert pixels into millimeters. Configure the real physical label size before using the 0.5 mm gap result for inspection decisions.</p>
+      <label>Border mode</label><select id="borderMode"><option value="AUTO" ${(s.borderMode||"AUTO")!=="FIXED"?"selected":""}>Auto detect nameplate border</option><option value="FIXED" ${s.borderMode==="FIXED"?"selected":""}>Fixed photo border</option></select>
       <div class="measure-grid">
         <label>Nameplate width (mm)<input id="nameplateWidthMm" type="number" min="0" step="0.1" value="${escapeHtml(s.nameplateWidthMm||"")}"></label>
         <label>Nameplate height (mm)<input id="nameplateHeightMm" type="number" min="0" step="0.1" value="${escapeHtml(s.nameplateHeightMm||"")}"></label>
         <label>Minimum top gap (mm)<input id="minTopGapMm" type="number" min="0" step="0.1" value="${escapeHtml(s.minTopGapMm??0.5)}"></label>
         <label>Minimum bottom gap (mm)<input id="minBottomGapMm" type="number" min="0" step="0.1" value="${escapeHtml(s.minBottomGapMm??0.5)}"></label>
+        <label>Fixed border X (%)<input id="fixedBorderX" type="number" min="0" max="100" step="0.1" value="${escapeHtml(s.fixedBorder?.x??5)}"></label>
+        <label>Fixed border Y (%)<input id="fixedBorderY" type="number" min="0" max="100" step="0.1" value="${escapeHtml(s.fixedBorder?.y??45)}"></label>
+        <label>Fixed border width (%)<input id="fixedBorderW" type="number" min="0" max="100" step="0.1" value="${escapeHtml(s.fixedBorder?.w??90)}"></label>
+        <label>Fixed border height (%)<input id="fixedBorderH" type="number" min="0" max="100" step="0.1" value="${escapeHtml(s.fixedBorder?.h??10)}"></label>
       </div>
+      <p class="help">For fixed-border testing, take photos with the nameplate always inside this same rectangle of the full image. X/Y/W/H are percentages of the uploaded photo.</p>
       <p class="help">Electric spec extraction is intentionally deferred for a later version.</p>`;
     }
     function render(){renderStandardList();renderLineBindings();renderEditor();$("thresholdPercent").value=config.thresholdPercent||85;}
-    function readEditor(){const s=selectedStandard();if(!s)return;s.name=$("stdName")?.value.trim()||"Untitled Standard";s.brandLabel=$("brandLabel")?.value.trim()||"";s.productTypes=($("productTypes")?.value||"").split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);s.originLines=($("originLines")?.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);s.nameplateWidthMm=Number($("nameplateWidthMm")?.value||0);s.nameplateHeightMm=Number($("nameplateHeightMm")?.value||0);s.minTopGapMm=Number($("minTopGapMm")?.value||0.5);s.minBottomGapMm=Number($("minBottomGapMm")?.value||0.5);s.generalSpecs=[];s.performanceMode="STC_ONLY";s.performanceSpecs=[];}
+    function readEditor(){const s=selectedStandard();if(!s)return;s.name=$("stdName")?.value.trim()||"Untitled Standard";s.brandLabel=$("brandLabel")?.value.trim()||"";s.productTypes=($("productTypes")?.value||"").split(/\r?\n|,/).map(x=>x.trim()).filter(Boolean);s.originLines=($("originLines")?.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);s.nameplateWidthMm=Number($("nameplateWidthMm")?.value||0);s.nameplateHeightMm=Number($("nameplateHeightMm")?.value||0);s.minTopGapMm=Number($("minTopGapMm")?.value||0.5);s.minBottomGapMm=Number($("minBottomGapMm")?.value||0.5);s.borderMode=$("borderMode")?.value==="FIXED"?"FIXED":"AUTO";s.fixedBorder={x:Number($("fixedBorderX")?.value||0),y:Number($("fixedBorderY")?.value||0),w:Number($("fixedBorderW")?.value||0),h:Number($("fixedBorderH")?.value||0)};s.generalSpecs=[];s.performanceMode="STC_ONLY";s.performanceSpecs=[];}
     function readBindings(){config.thresholdPercent=Math.max(50,Math.min(100,Number($("thresholdPercent").value||85)));for(const select of document.querySelectorAll("[data-line]"))config.lineBindings[select.dataset.line]=select.value;}
     async function loadConfig(){const res=await fetch(`${API_URL}/config`);if(!res.ok)throw new Error(`Config request failed: ${res.status}`);config=await res.json();if(!config.standards)config=emptyConfig();selectedId=config.standards[0]?.id||"";render();$("status").textContent="Config loaded.";}
     async function saveConfig(){readEditor();readBindings();const res=await fetch(`${API_URL}/config`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(config)});const payload=await res.json().catch(()=>({}));if(!res.ok)throw new Error(payload.error||`Save failed: ${res.status}`);config=payload;render();$("status").textContent="Shared config saved.";}

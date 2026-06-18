@@ -53,6 +53,7 @@ Open `admin.html` to configure:
 - origin wording lines;
 - physical nameplate width/height in mm;
 - minimum top and bottom text-to-edge gap, default `0.5 mm`;
+- printing deviation border mode: auto-detected border or fixed photo border;
 - L1-L8 line bindings;
 - global product/origin pass threshold percentage.
 
@@ -61,6 +62,8 @@ The admin setup is stored by Cloud Run in a Google Cloud Storage JSON config obj
 ## Printing Deviation
 
 The app uses Google Vision word bounding boxes as the printed text reference, then estimates the long nameplate band in the browser using image processing. It converts pixels to millimeters using the admin-configured nameplate height.
+
+For a fixed-border test, set the standard's border mode to **Fixed photo border** and enter the expected nameplate rectangle as X/Y/width/height percentages of the full image. This is useful when photos are taken with a guide frame or fixture where the nameplate always appears in the same location.
 
 Deviation output:
 
