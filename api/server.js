@@ -1,13 +1,17 @@
 import express from "express";
 import { randomUUID } from "node:crypto";
+import { Firestore } from "@google-cloud/firestore";
 import { Storage } from "@google-cloud/storage";
 import vision from "@google-cloud/vision";
 
 const app = express();
 const client = new vision.ImageAnnotatorClient();
 const storage = new Storage();
+const firestore = new Firestore();
 const configBucket = process.env.CONFIG_BUCKET || "";
 const configObject = process.env.CONFIG_OBJECT || "nameplate-config.json";
+const inspectionImageBucket = process.env.INSPECTION_IMAGE_BUCKET || "";
+const inspectionsCollection = process.env.INSPECTIONS_COLLECTION || "inspections";
 const allowedOrigins = new Set([
   "https://syzygycc.github.io",
   "http://localhost:8080",
@@ -110,6 +114,110 @@ app.put("/config", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message || "Could not save config." });
+  }
+});
+
+function stripImagePrefix(value) {
+  return String(value || "").replace(/^data:image\/[^;]+;base64,/, "");
+}
+function cleanInspectionItem(item) {
+  return {
+    group: String(item?.group || "").slice(0, 80),
+    attribute: String(item?.attribute || "").slice(0, 120),
+    expected: String(item?.expected || "").slice(0, 500),
+    actual: String(item?.actual || "").slice(0, 1000),
+    score: Math.max(0, Math.min(1, Number(item?.score || 0))),
+    pass: Boolean(item?.pass)
+  };
+}
+function publicInspection(record) {
+  const { text, ...summary } = record;
+  return summary;
+}
+async function saveInspectionImage(id, imageBase64, contentType) {
+  if (!inspectionImageBucket || !imageBase64) return null;
+  const raw = stripImagePrefix(imageBase64);
+  if (!raw) return null;
+  const bytes = Buffer.from(raw, "base64");
+  if (!bytes.length) return null;
+  if (bytes.length > 10 * 1024 * 1024) throw new Error("Inspection image must be 10 MB or smaller.");
+  const now = new Date();
+  const yyyy = now.getUTCFullYear();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(now.getUTCDate()).padStart(2, "0");
+  const type = String(contentType || "image/jpeg");
+  const extension = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
+  const objectPath = `inspections/${yyyy}/${mm}/${dd}/${id}.${extension}`;
+  await storage.bucket(inspectionImageBucket).file(objectPath).save(bytes, {
+    contentType: type,
+    resumable: false,
+    metadata: { cacheControl: "private, max-age=0" }
+  });
+  return {
+    bucket: inspectionImageBucket,
+    path: objectPath,
+    sizeBytes: bytes.length,
+    contentType: type
+  };
+}
+function normalizeInspection(input, id, imageInfo) {
+  const items = Array.isArray(input?.items) ? input.items.map(cleanInspectionItem) : [];
+  const createdAt = String(input?.createdAt || new Date().toISOString());
+  const passed = Boolean(input?.passed);
+  return {
+    id,
+    createdAt,
+    line: String(input?.line || "").slice(0, 20),
+    fileName: String(input?.fileName || "").slice(0, 300),
+    standardId: String(input?.standardId || "").slice(0, 120),
+    standardName: String(input?.standardName || "").slice(0, 300),
+    score: Math.max(0, Math.min(100, Math.round(Number(input?.score || 0)))),
+    passed,
+    result: passed ? "PASS" : "FAIL",
+    items,
+    text: String(input?.text || "").slice(0, 25000),
+    image: imageInfo,
+    appVersion: "v1.5"
+  };
+}
+
+app.post("/inspections", async (req, res) => {
+  try {
+    const doc = firestore.collection(inspectionsCollection).doc();
+    const imageInfo = await saveInspectionImage(doc.id, req.body?.imageBase64, req.body?.imageContentType);
+    const record = normalizeInspection(req.body || {}, doc.id, imageInfo);
+    await doc.set(record);
+    res.status(201).json(publicInspection(record));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message || "Could not save inspection." });
+  }
+});
+
+app.get("/inspections", async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit || 100)));
+    const snapshot = await firestore.collection(inspectionsCollection).orderBy("createdAt", "desc").limit(200).get();
+    let items = snapshot.docs.map(doc => publicInspection({ id: doc.id, ...doc.data() }));
+    if (req.query.line) items = items.filter(item => item.line === String(req.query.line));
+    if (req.query.result) items = items.filter(item => item.result === String(req.query.result).toUpperCase());
+    if (req.query.from) items = items.filter(item => item.createdAt >= String(req.query.from));
+    if (req.query.to) items = items.filter(item => item.createdAt <= String(req.query.to));
+    res.json({ items: items.slice(0, limit) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message || "Could not read inspections." });
+  }
+});
+
+app.get("/inspections/:id", async (req, res) => {
+  try {
+    const doc = await firestore.collection(inspectionsCollection).doc(String(req.params.id)).get();
+    if (!doc.exists) return res.status(404).json({ error: "Inspection not found." });
+    res.json({ id: doc.id, ...doc.data() });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: error.message || "Could not read inspection." });
   }
 });
 

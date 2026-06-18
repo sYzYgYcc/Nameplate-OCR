@@ -6,6 +6,7 @@ Current inspection scope:
 
 - product type matching, with multiple valid model values per standard;
 - product origin matching, with editable origin lines.
+- cloud inspection history, including compressed inspection photos.
 
 Electric spec extraction is intentionally deferred.
 
@@ -29,6 +30,9 @@ Endpoints:
 - `POST /ocr`: runs Google Vision `DOCUMENT_TEXT_DETECTION` and returns full text plus normalized word bounding boxes.
 - `GET /config`: reads shared admin/operator config.
 - `PUT /config`: saves shared admin/operator config.
+- `POST /inspections`: saves one inspection record and compressed photo.
+- `GET /inspections`: lists recent cloud inspection records.
+- `GET /inspections/:id`: reads one full inspection record.
 
 To redeploy:
 
@@ -55,6 +59,15 @@ Open `admin.html` to configure:
 
 The admin setup is stored by Cloud Run in a Google Cloud Storage JSON config object, so all devices share the same standards and line bindings.
 
+## Inspection Data Storage
+
+Each completed inspection is saved to Google Cloud:
+
+- Firestore stores the inspection record, line, standard, result, score, OCR text, and field-level expected/actual/pass data.
+- Cloud Storage stores the compressed uploaded photo.
+- The operator history table loads recent records from Cloud Run.
+- If cloud saving fails, the app keeps that run in local pending history so the operator can still see the result.
+
 ## Operator Workflow
 
 1. Admin creates standards and binds each line.
@@ -62,8 +75,13 @@ The admin setup is stored by Cloud Run in a Google Cloud Storage JSON config obj
 3. Operator selects `L1-L8`.
 4. Operator uploads or takes a full photo.
 5. Operator clicks **Run OCR and compare**.
-6. App reports product/origin result.
-7. Operator can export local inspection history as CSV.
+6. App reports product/origin result and saves the run to cloud history.
+7. Operator can export the current history table as CSV.
+
+## Roadmap
+
+- V2: restore admin-configured electric spec extraction and comparison.
+- V3: investigate printing deviation detection as a separate experimental flow.
 
 ## Install on iPhone as a PWA
 
