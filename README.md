@@ -14,6 +14,7 @@ Electric spec extraction is intentionally deferred.
 
 - Operator page: `https://syzygycc.github.io/Nameplate-OCR/index.html`
 - Admin page: `https://syzygycc.github.io/Nameplate-OCR/admin.html`
+- Gemini coordinate trial: `https://syzygycc.github.io/Nameplate-OCR/gemini-trial.html`
 
 Operators select line `L1-L8`, upload or take a full photo, and run OCR. The app loads the standard bound to that line from shared Cloud Run config.
 
@@ -33,6 +34,7 @@ Endpoints:
 - `POST /inspections`: saves one inspection record and compressed photo.
 - `GET /inspections`: lists recent cloud inspection records.
 - `GET /inspections/:id`: reads one full inspection record.
+- `POST /gemini-ocr-trial`: experimental Gemini OCR and coordinate extraction. This does not replace `/ocr`.
 
 To redeploy:
 
@@ -58,6 +60,21 @@ Open `admin.html` to configure:
 - global product/origin pass threshold percentage.
 
 The admin setup is stored by Cloud Run in a Google Cloud Storage JSON config object, so all devices share the same standards and line bindings.
+
+## Gemini Coordinate Trial
+
+`gemini-trial.html` is an experimental page for testing Gemini image understanding on full nameplate photos.
+
+It sends the complete image to Cloud Run `POST /gemini-ocr-trial`, which calls Gemini using the backend-only `GEMINI_API_KEY` environment variable. The API key must not be stored in frontend code or committed files.
+
+The trial asks Gemini for:
+
+- full extracted text;
+- product type, origin, text block, and nameplate regions;
+- normalized `box2d` coordinates in `[ymin, xmin, ymax, xmax]` format from `0-1000`;
+- pixel-only top and bottom gap estimates when both nameplate and text boxes are available.
+
+The deviation result is informational only. It is not a `0.5 mm` pass/fail judgement until a later version adds physical calibration or fixed capture controls.
 
 ## Inspection Data Storage
 

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#002060">
+  <title>Gemini OCR Coordinate Trial</title>
+  <style>
+    :root{--navy:#002060;--ink:#17212b;--muted:#64748b;--line:#dce3ea;--bg:#f4f7f9;--paper:#fff;--ok:#137333;--bad:#b42318;--warn:#a15c00;--blue:#1d4ed8;--green:#16a34a;--orange:#f97316}
+    *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--bg)}header{padding:30px max(24px,calc((100% - 1180px)/2));color:#fff;background:var(--navy)}header h1{margin:0 0 8px;font-size:clamp(26px,4vw,40px)}header p{margin:0;color:#dce8ff}.nav{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}.nav a{padding:9px 14px;border:1px solid #9bb6e5;border-radius:6px;color:#fff;text-decoration:none;font-weight:700}.nav a.active{color:var(--navy);background:#fff}
+    main{max-width:1180px;margin:24px auto;padding:0 20px 40px}.grid{display:grid;grid-template-columns:420px 1fr;gap:20px}.card{padding:22px;border:1px solid var(--line);border-radius:10px;background:var(--paper);box-shadow:0 4px 16px #001b4410}.wide{grid-column:1/-1}h2{margin:0 0 16px;font-size:20px;color:var(--navy)}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}button{padding:10px 15px;border:0;border-radius:6px;cursor:pointer;font:inherit;font-weight:700}button:disabled{cursor:not-allowed;opacity:.45}.primary{color:#fff;background:var(--navy)}.secondary{color:var(--navy);border:1px solid #9fb0c2;background:#fff}.notice{padding:12px 14px;border-left:4px solid var(--warn);background:#fff7e8;color:#674000}.status,.muted{color:var(--muted);font-size:14px}.status{min-height:22px;margin-top:10px}
+    .drop{min-height:240px;display:flex;align-items:center;justify-content:center;text-align:center;border:2px dashed #9fb0c2;border-radius:10px;background:#f8fafc;overflow:hidden;cursor:pointer}.drop.drag{border-color:var(--navy);background:#edf3ff}.drop img{display:block;max-width:100%;max-height:340px;object-fit:contain}.progress{display:none;height:8px;margin-top:14px;border-radius:99px;overflow:hidden;background:#e4eaf0}.progress span{display:block;width:0;height:100%;background:var(--navy);transition:width .2s}
+    .preview-frame{position:relative;display:inline-block;max-width:100%;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#111827}.preview-frame img{display:block;max-width:100%;height:auto}.preview-frame canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}.key{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}.swatch{width:14px;height:14px;border-radius:3px}.blue{background:var(--blue)}.green{background:var(--green)}.orange{background:var(--orange)}
+    table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:10px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f3f6f9;color:#435168}pre{max-height:360px;overflow:auto;white-space:pre-wrap;padding:12px;background:#111827;color:#e5eefb}.metric{display:inline-block;min-width:150px;margin:0 10px 12px 0;padding:13px;border:1px solid var(--line);border-radius:8px;background:#f8fafc}.metric strong{display:block;margin-top:5px;font-size:22px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}.wide{grid-column:auto}table{display:block;overflow-x:auto}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Gemini OCR / Coordinate Trial</h1>
+    <p>Experimental full-photo text reading and pixel-only coordinate deviation test. This does not replace the Cloud Vision production OCR flow.</p>
+    <nav class="nav">
+      <a href="index.html">Operator page</a>
+      <a href="admin.html">Admin page</a>
+      <a href="gemini-trial.html" class="active">Gemini trial</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="grid">
+      <section class="card">
+        <h2>1. Upload or take photo</h2>
+        <div class="notice">This experimental page sends the complete image to Gemini. Deviation is pixel-only and informational.</div>
+        <label class="drop" id="dropZone" style="margin-top:14px">
+          <input id="fileInput" type="file" accept="image/*" hidden>
+          <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden>
+          <span id="dropText"><strong>Choose or drop a full nameplate photo</strong><br><span class="muted">PNG, JPG, WEBP, or a phone photo</span></span>
+          <img id="preview" alt="Uploaded full nameplate photo" hidden>
+        </label>
+        <div class="row" style="margin-top:14px">
+          <button class="secondary" id="chooseImage" type="button">Choose Image</button>
+          <button class="secondary" id="takePhoto" type="button">Take Photo</button>
+          <button class="primary" id="runButton" disabled>Run Gemini trial</button>
+          <button class="secondary" id="clearImage" disabled>Clear</button>
+        </div>
+        <div class="progress" id="progress"><span></span></div>
+        <div class="status" id="status"></div>
+      </section>
+
+      <section class="card">
+        <h2>2. Coordinate overlay</h2>
+        <div id="overlayEmpty" class="status">Run Gemini trial to draw detected boxes.</div>
+        <div class="preview-frame" id="previewFrame" hidden>
+          <img id="overlayImage" alt="Gemini coordinate overlay">
+          <canvas id="overlayCanvas"></canvas>
+        </div>
+        <div class="legend">
+          <span class="key"><span class="swatch blue"></span>Nameplate box</span>
+          <span class="key"><span class="swatch green"></span>Text/print box</span>
+          <span class="key"><span class="swatch orange"></span>Pixel gap markers</span>
+        </div>
+      </section>
+
+      <section class="card wide">
+        <h2>Pixel-only deviation result</h2>
+        <div id="deviation"><div class="status">No Gemini result yet.</div></div>
+      </section>
+
+      <section class="card wide">
+        <h2>Detected regions</h2>
+        <div id="regions"><div class="status">No region coordinates yet.</div></div>
+      </section>
+
+      <section class="card wide">
+        <h2>Gemini extracted text</h2>
+        <pre id="ocrText">No OCR text yet.</pre>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const API_URL = "https://nameplate-ocr-api-906417989527.us-east1.run.app";
+    const MAX_LONG_EDGE = 4096;
+    const TARGET_BYTES = 8 * 1024 * 1024 - 64 * 1024;
+    const $ = id => document.getElementById(id);
+    let selectedOriginalFile = null;
+    let preparedBlob = null;
+    let preparedSize = { width: 0, height: 0 };
+    let previewUrl = null;
+
+    function escapeHtml(value){return String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
+    function loadImage(file){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};img.onerror=e=>{URL.revokeObjectURL(url);reject(e)};img.src=url;});}
+    function canvasToBlob(canvas,quality){return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error("Could not prepare photo.")),"image/jpeg",quality));}
+    function blobToBase64(blob){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(reader.error||new Error("Could not read photo."));reader.readAsDataURL(blob);});}
+    async function prepareFullPhoto(file){const img=await loadImage(file);const largest=Math.max(img.naturalWidth,img.naturalHeight);if(largest<=MAX_LONG_EDGE&&file.size<TARGET_BYTES&&/^image\/(jpeg|png|webp)$/i.test(file.type))return{blob:file,resized:false,width:img.naturalWidth,height:img.naturalHeight};const scale=Math.min(1,MAX_LONG_EDGE/largest);const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));const ctx=canvas.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);let quality=.92;let blob=await canvasToBlob(canvas,quality);while(blob.size>=TARGET_BYTES&&quality>.55){quality-=.08;blob=await canvasToBlob(canvas,quality);}if(blob.size>=TARGET_BYTES)throw new Error("The full photo remains too large. Please use a smaller photo.");return{blob,resized:true,width:canvas.width,height:canvas.height};}
+    function normBoxToPx(box){if(!Array.isArray(box)||box.length!==4)return null;return{y1:box[0]/1000*preparedSize.height,x1:box[1]/1000*preparedSize.width,y2:box[2]/1000*preparedSize.height,x2:box[3]/1000*preparedSize.width};}
+    function formatBox(box){return Array.isArray(box)?`[${box.join(", ")}]`:""; }
+    function formatPxBox(box){const px=normBoxToPx(box);return px?`x ${Math.round(px.x1)}-${Math.round(px.x2)}, y ${Math.round(px.y1)}-${Math.round(px.y2)}`:""; }
+
+    async function setFile(file){
+      if(!file||!file.type.startsWith("image/"))return $("status").textContent="Please choose a valid image.";
+      selectedOriginalFile=file;preparedBlob=null;preparedSize={width:0,height:0};
+      if(previewUrl)URL.revokeObjectURL(previewUrl);
+      previewUrl=URL.createObjectURL(file);
+      $("preview").src=previewUrl;$("overlayImage").src=previewUrl;$("preview").hidden=false;$("dropText").hidden=true;$("clearImage").disabled=false;$("runButton").disabled=true;$("status").textContent="Preparing full photo...";
+      $("previewFrame").hidden=false;$("overlayEmpty").hidden=true;clearOverlay();
+      try{const prepared=await prepareFullPhoto(file);preparedBlob=prepared.blob;preparedSize={width:prepared.width,height:prepared.height};$("status").textContent=`Ready for Gemini (${prepared.width} x ${prepared.height}, ${(prepared.blob.size/1024/1024).toFixed(2)} MB${prepared.resized?", resized":""}).`;$("runButton").disabled=false;}catch(error){$("status").textContent=error.message;}
+    }
+    function clearFile(){if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=null;selectedOriginalFile=null;preparedBlob=null;preparedSize={width:0,height:0};$("fileInput").value="";$("cameraInput").value="";$("preview").hidden=true;$("dropText").hidden=false;$("previewFrame").hidden=true;$("overlayEmpty").hidden=false;$("runButton").disabled=true;$("clearImage").disabled=true;$("status").textContent="";$("regions").innerHTML='<div class="status">No region coordinates yet.</div>';$("deviation").innerHTML='<div class="status">No Gemini result yet.</div>';$("ocrText").textContent="No OCR text yet.";}
+    function clearOverlay(){const canvas=$("overlayCanvas");const ctx=canvas.getContext("2d");ctx.clearRect(0,0,canvas.width||1,canvas.height||1);}
+    function drawBox(ctx, box, color, label){const px=normBoxToPx(box);if(!px)return;const sx=ctx.canvas.width/preparedSize.width;const sy=ctx.canvas.height/preparedSize.height;const x=px.x1*sx;const y=px.y1*sy;const w=(px.x2-px.x1)*sx;const h=(px.y2-px.y1)*sy;ctx.strokeStyle=color;ctx.lineWidth=3;ctx.strokeRect(x,y,w,h);ctx.fillStyle=color;ctx.font="14px Arial";ctx.fillText(label,x+6,Math.max(18,y+18));}
+    function drawGap(ctx, nameplateBox, textBox){const outer=normBoxToPx(nameplateBox);const inner=normBoxToPx(textBox);if(!outer||!inner)return;const sx=ctx.canvas.width/preparedSize.width;const sy=ctx.canvas.height/preparedSize.height;const x=((outer.x1+outer.x2)/2)*sx;ctx.strokeStyle="#f97316";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,outer.y1*sy);ctx.lineTo(x,inner.y1*sy);ctx.moveTo(x,inner.y2*sy);ctx.lineTo(x,outer.y2*sy);ctx.stroke();}
+    function drawOverlay(result){const img=$("overlayImage");const canvas=$("overlayCanvas");const rect=img.getBoundingClientRect();canvas.width=Math.max(1,Math.round(rect.width));canvas.height=Math.max(1,Math.round(rect.height));const ctx=canvas.getContext("2d");ctx.clearRect(0,0,canvas.width,canvas.height);drawBox(ctx,result.deviation?.nameplateBox,"#1d4ed8","nameplate");drawBox(ctx,result.deviation?.textBox,"#16a34a","text");drawGap(ctx,result.deviation?.nameplateBox,result.deviation?.textBox);}
+    function renderDeviation(result){const d=result.deviation||{};$("deviation").innerHTML=`<div class="metric"><span class="muted">Mode</span><strong>${escapeHtml(d.mode||"")}</strong></div><div class="metric"><span class="muted">Top gap</span><strong>${d.topGapPx==null?"Needs review":`${d.topGapPx}px`}</strong></div><div class="metric"><span class="muted">Bottom gap</span><strong>${d.bottomGapPx==null?"Needs review":`${d.bottomGapPx}px`}</strong></div><div class="metric"><span class="muted">Result</span><strong>${escapeHtml(d.result||"")}</strong></div><p class="muted">Pixel-only output. Do not use this as a 0.5 mm pass/fail judgement yet.</p>`;}
+    function renderRegions(result){const rows=(result.regions||[]).map(region=>`<tr><td>${escapeHtml(region.label)}</td><td>${escapeHtml(region.text)}</td><td>${escapeHtml(formatBox(region.box2d))}</td><td>${escapeHtml(formatPxBox(region.box2d))}</td><td>${escapeHtml(region.confidenceNote||"")}</td></tr>`).join("");$("regions").innerHTML=rows?`<table><thead><tr><th>Label</th><th>Text</th><th>Normalized box2d</th><th>Pixel box</th><th>Note</th></tr></thead><tbody>${rows}</tbody></table>`:'<div class="status">Gemini did not return usable region boxes.</div>';}
+    async function runGemini(){if(!preparedBlob)return;const button=$("runButton");button.disabled=true;$("progress").style.display="block";$("progress").firstElementChild.style.width="20%";$("status").textContent="Uploading full photo to Gemini trial endpoint...";try{const res=await fetch(`${API_URL}/gemini-ocr-trial`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:await blobToBase64(preparedBlob),imageContentType:preparedBlob.type||"image/jpeg"})});$("progress").firstElementChild.style.width="80%";const payload=await res.json().catch(()=>({}));if(!res.ok)throw new Error(payload.error||`Gemini trial returned HTTP ${res.status}.`);$("ocrText").textContent=payload.text||"No text returned.";renderDeviation(payload);renderRegions(payload);drawOverlay(payload);$("status").textContent=`Gemini trial complete using ${payload.model||"configured model"}.`;$("progress").firstElementChild.style.width="100%";}catch(error){$("status").textContent=`Gemini trial failed: ${error.message}`;}finally{button.disabled=false;setTimeout(()=>$("progress").style.display="none",700);}}
+
+    $("chooseImage").onclick=()=>$("fileInput").click();
+    $("takePhoto").onclick=()=>$("cameraInput").click();
+    $("fileInput").onchange=e=>setFile(e.target.files[0]);
+    $("cameraInput").onchange=e=>setFile(e.target.files[0]);
+    $("clearImage").onclick=clearFile;
+    $("runButton").onclick=runGemini;
+    ["dragenter","dragover"].forEach(name=>$("dropZone").addEventListener(name,e=>{e.preventDefault();$("dropZone").classList.add("drag")}));
+    ["dragleave","drop"].forEach(name=>$("dropZone").addEventListener(name,e=>{e.preventDefault();$("dropZone").classList.remove("drag")}));
+    $("dropZone").addEventListener("drop",e=>setFile(e.dataTransfer.files[0]));
+    window.addEventListener("resize",()=>{clearOverlay();});
+  </script>
+</body>
+</html>

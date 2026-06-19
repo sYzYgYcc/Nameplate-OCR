@@ -12,6 +12,7 @@ const configBucket = process.env.CONFIG_BUCKET || "";
 const configObject = process.env.CONFIG_OBJECT || "nameplate-config.json";
 const inspectionImageBucket = process.env.INSPECTION_IMAGE_BUCKET || "";
 const inspectionsCollection = process.env.INSPECTIONS_COLLECTION || "inspections";
+const geminiModel = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 const allowedOrigins = new Set([
   "https://syzygycc.github.io",
   "http://localhost:8080",
@@ -119,6 +120,51 @@ app.put("/config", async (req, res) => {
 
 function stripImagePrefix(value) {
   return String(value || "").replace(/^data:image\/[^;]+;base64,/, "");
+}
+function asBox(value) {
+  if (!Array.isArray(value) || value.length !== 4) return null;
+  const box = value.map(Number);
+  if (box.some(item => !Number.isFinite(item))) return null;
+  return box.map(item => Math.max(0, Math.min(1000, Math.round(item))));
+}
+function cleanGeminiRegion(region) {
+  return {
+    label: String(region?.label || "text_block").toLowerCase().replace(/\s+/g, "_").slice(0, 80),
+    text: String(region?.text || "").slice(0, 1000),
+    box2d: asBox(region?.box2d || region?.box_2d),
+    confidenceNote: String(region?.confidenceNote || region?.confidence_note || "").slice(0, 300)
+  };
+}
+function parseGeminiJson(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) return {};
+    return JSON.parse(match[0]);
+  }
+}
+function calculatePixelDeviation(nameplateBox, textBox) {
+  if (!nameplateBox || !textBox) {
+    return {
+      mode: "PIXEL_ONLY",
+      nameplateBox,
+      textBox,
+      topGapPx: null,
+      bottomGapPx: null,
+      result: "NEEDS_REVIEW"
+    };
+  }
+  return {
+    mode: "PIXEL_ONLY",
+    nameplateBox,
+    textBox,
+    topGapPx: Math.round(textBox[0] - nameplateBox[0]),
+    bottomGapPx: Math.round(nameplateBox[2] - textBox[2]),
+    result: "INFO_ONLY"
+  };
 }
 function cleanInspectionItem(item) {
   return {
@@ -277,6 +323,89 @@ app.post("/ocr", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(502).json({ error: error.message || "Vision OCR request failed." });
+  }
+});
+
+app.post("/gemini-ocr-trial", async (req, res) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY is not configured." });
+
+    const raw = stripImagePrefix(req.body?.imageBase64);
+    if (!raw) return res.status(400).json({ error: "imageBase64 is required." });
+
+    const image = Buffer.from(raw, "base64");
+    if (!image.length) return res.status(400).json({ error: "Image data is invalid." });
+    if (image.length > 10 * 1024 * 1024) {
+      return res.status(413).json({ error: "Image must be 10 MB or smaller." });
+    }
+
+    const imageContentType = String(req.body?.imageContentType || "image/jpeg");
+    const prompt = `You are analyzing a solar module nameplate inspection photo.
+Return only JSON. Do not include markdown.
+Coordinate convention: every box2d must be [ymin, xmin, ymax, xmax] normalized from 0 to 1000.
+Identify:
+1. fullText: all readable OCR text.
+2. regions: product_type, origin, text_block, and nameplate regions when visible. Each region label must be one of: product_type, origin, text_block, nameplate.
+3. deviation.nameplateBox: the full physical nameplate or label strip if visible.
+4. deviation.textBox: the tight overall printed text/ink region, excluding the physical label background if possible.
+This is an experimental pixel-only coordinate trial, not a millimeter judgement.
+JSON shape:
+{
+  "fullText": "string",
+  "regions": [
+    {"label": "product_type", "text": "string", "box2d": [0,0,0,0], "confidenceNote": "string"}
+  ],
+  "deviation": {
+    "nameplateBox": [0,0,0,0],
+    "textBox": [0,0,0,0]
+  }
+}`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { inline_data: { mime_type: imageContentType, data: raw } },
+            { text: prompt }
+          ]
+        }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0
+        }
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload?.error?.message || `Gemini returned HTTP ${response.status}.`;
+      throw new Error(message);
+    }
+
+    const text = payload?.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("\n").trim() || "";
+    const parsed = parseGeminiJson(text);
+    const regions = Array.isArray(parsed.regions) ? parsed.regions.map(cleanGeminiRegion).filter(region => region.box2d) : [];
+    const nameplateRegion = regions.find(region => region.label.includes("nameplate"));
+    const textRegion = regions.find(region => region.label.includes("text_block") || region.label.includes("printed") || region.label.includes("ink"));
+    const nameplateBox = asBox(parsed?.deviation?.nameplateBox || parsed?.deviation?.nameplate_box) || nameplateRegion?.box2d || null;
+    const textBox = asBox(parsed?.deviation?.textBox || parsed?.deviation?.text_box) || textRegion?.box2d || null;
+
+    res.json({
+      engine: "gemini",
+      model: geminiModel,
+      text: String(parsed.fullText || parsed.full_text || "").trim(),
+      regions,
+      deviation: calculatePixelDeviation(nameplateBox, textBox),
+      rawJson: parsed
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(502).json({ error: error.message || "Gemini OCR trial request failed." });
   }
 });
 
